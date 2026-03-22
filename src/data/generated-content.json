@@ -1,0 +1,47 @@
+{
+  "updatedAt": "2026-03-22T22:17:57.180Z",
+  "specialtiesKey": "Boat Detailing & Cleaning,Boat Mechanics & Engine Repair,Fiberglass & Gelcoat Repair,Marine Electrical & Electronics,Yacht Management",
+  "servicesKey": "",
+  "contentVersion": "6",
+  "content": {
+    "tagline": "Full-Service Yacht Care, Inside and Out",
+    "about": "At Yachts Etc., we bring decades of specialized expertise to yacht owners and marine enthusiasts throughout Fort Lauderdale and the surrounding South Florida waters. As a full-service marine company, we understand that your vessel represents a significant investment and a source of pride, which is why we treat every yacht that comes into our care with the meticulous attention it deserves. Our comprehensive approach to yacht maintenance, repair, and management ensures that your boat remains in prime condition whether it's dockside in Fort Lauderdale, cruising the Intracoastal, or anchored off the coast of Miami or the Florida Keys.\n\nOur team handles everything from complete yacht management and fiberglass and gelcoat repair to professional boat detailing and cleaning, boat mechanics and engine repair, and marine electrical and electronics installation and troubleshooting. Whether your hull needs cosmetic restoration, your engines need a full diagnostic, or your onboard electronics need upgrading, we have the hands-on experience to get it done right. We work on vessels of all sizes and configurations, bringing the same level of care to a weekend cruiser as we do to a large offshore yacht.\n\nWe serve yacht owners and boaters across South Florida, including Broward County, Miami-Dade County, and Palm Beach County, with a service radius that puts us within reach of most marinas and boatyards in the region. At Yachts Etc., our goal is simple — keep your vessel performing, looking, and running the way it should, so you can spend more time on the water and less time worrying about what's underneath the surface.",
+    "seoTitle": "Yachts Etc | Yacht Management Fort Lauderdale, FL",
+    "seoDescription": "Yachts Etc offers yacht management, fiberglass repair, detailing & engine repair in Fort Lauderdale, FL. Serving all of South Florida. Call today.",
+    "seoKeywords": [
+      "yacht management Fort Lauderdale FL",
+      "fiberglass and gelcoat repair Fort Lauderdale",
+      "boat detailing Fort Lauderdale FL",
+      "marine engine repair South Florida",
+      "marine electrical electronics Fort Lauderdale",
+      "boat mechanics Fort Lauderdale FL",
+      "full service yacht maintenance South Florida",
+      "yacht repair Broward County FL"
+    ],
+    "serviceDescriptions": {
+      "Yacht Management": "Yachts Etc. provides comprehensive yacht management services that cover every aspect of vessel ownership, from routine maintenance scheduling and crew coordination to vendor oversight and compliance documentation. We act as your dedicated point of contact, making sure your yacht is always ready to go when you are. Our management programs are tailored to each owner's needs, whether you're aboard regularly or managing your vessel remotely.",
+      "Fiberglass & Gelcoat Repair": "Our fiberglass and gelcoat repair work addresses everything from minor surface scratches and stress cracks to significant hull damage requiring structural restoration. We match gelcoat colors precisely and finish surfaces to a high-gloss standard that blends seamlessly with the original finish. Proper fiberglass repair protects the integrity of the hull and preserves the long-term value of the vessel.",
+      "Boat Detailing & Cleaning": "We offer thorough boat detailing and cleaning services that go well beyond a basic wash, including hull polishing, teak cleaning and conditioning, interior detailing, and oxidation removal. Regular professional detailing protects your vessel's surfaces from UV damage, salt buildup, and marine growth. The result is a boat that looks well-maintained and holds its value over time.",
+      "Boat Mechanics & Engine Repair": "Our marine mechanics diagnose and repair inboard and outboard engines, stern drives, and related mechanical systems, handling everything from routine service and oil changes to full engine overhauls. We work on a wide range of engine brands and vessel types, using proper diagnostic tools to identify issues accurately before any work begins. Keeping your engines properly maintained means fewer breakdowns and better performance on the water.",
+      "Marine Electrical & Electronics": "We install, repair, and troubleshoot marine electrical systems and onboard electronics, including navigation equipment, chartplotters, VHF radios, autopilots, battery banks, and shore power systems. Faulty wiring or outdated electronics can create serious safety risks and operational headaches, so we make sure every system is correctly wired, grounded, and functioning as intended. Whether it's a new electronics upgrade or tracking down an elusive electrical fault, we handle it with precision."
+    },
+    "serviceAreaDescription": "Yachts Etc. is based in Fort Lauderdale, FL and provides mobile marine services throughout South Florida within a 40-mile radius.",
+    "commonProjects": [
+      "Full yacht management program setup for absentee owners",
+      "Hull fiberglass repair and gelcoat color-matching after collision damage",
+      "Complete boat detailing including oxidation removal and hull polish",
+      "Outboard and inboard engine diagnostics, service, and repair",
+      "Chartplotter and VHF radio installation with proper marine wiring",
+      "Seasonal bottom cleaning and topsides detailing for marina-kept vessels",
+      "Marine electrical troubleshooting and battery system upgrades"
+    ],
+    "serviceAreaLocalities": [
+      "Fort Lauderdale",
+      "Miami",
+      "Pompano Beach",
+      "Hollywood",
+      "Boca Raton"
+    ],
+    "serviceAreaTitle": "We Come to You"
+  }
+}
