@@ -1,0 +1,406 @@
+name: Sync Template to Contractor Sites
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_upgrade:
+        description: 'Force auto-merge on all sites (overrides semver logic)'
+        required: false
+        type: boolean
+        default: false
+      target_repo:
+        description: 'Sync to a single repo (leave blank for all)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Wait for auto-version to finish if it's going to run
+    if: "contains(github.event.head_commit.message, '[auto-version]') || github.event_name == 'workflow_dispatch'"
+    steps:
+      - name: Checkout template
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find contractor repos and open sync PRs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.SYNC_TOKEN }}
+          script: |
+            const templateOwner = 'YachtSupply';
+            const templateRepo = 'marine-pro-website-template';
+            const forceUpgrade = '${{ inputs.force_upgrade }}' === 'true';
+            const targetRepo = '${{ inputs.target_repo }}'.trim();
+
+            // Files/prefixes to NEVER sync (contractor-specific)
+            const skipFiles = new Set(['src/site.config.ts', '.boatwork-template']);
+            const skipPrefixes = ['.github/'];
+
+            // ── Semver helpers ──
+            function parseSemver(v) {
+              const match = (v || '0.0.0').match(/^(\d+)\.(\d+)\.(\d+)/);
+              if (!match) return { major: 0, minor: 0, patch: 0 };
+              return { major: parseInt(match[1]), minor: parseInt(match[2]), patch: parseInt(match[3]) };
+            }
+
+            function isNewerVersion(templateVersion, siteVersion) {
+              const tv = parseSemver(templateVersion);
+              const sv = parseSemver(siteVersion);
+              if (tv.major !== sv.major) return tv.major > sv.major;
+              if (tv.minor !== sv.minor) return tv.minor > sv.minor;
+              return tv.patch > sv.patch;
+            }
+
+            function shouldForceUpgrade(templateVersion, siteVersion) {
+              const tv = parseSemver(templateVersion);
+              const sv = parseSemver(siteVersion);
+              // Force upgrade if major or minor version changed (and template is newer)
+              return (tv.major !== sv.major || tv.minor !== sv.minor) && isNewerVersion(templateVersion, siteVersion);
+            }
+
+            // ── Read template version ──
+            const fs = require('fs');
+            const templateMeta = JSON.parse(fs.readFileSync('.boatwork-template', 'utf8'));
+            const templateVersion = templateMeta.templateVersion;
+            console.log(`Template version: ${templateVersion}`);
+
+            // Find all repos in YachtSupply org that end with -website
+            const repos = await github.paginate(github.rest.repos.listForOrg, {
+              org: templateOwner,
+              type: 'public',
+              per_page: 100,
+            });
+
+            let contractorRepos = repos.filter(r =>
+              r.name !== templateRepo &&
+              r.name.endsWith('-website')
+            );
+
+            // If targeting a single repo, filter
+            if (targetRepo) {
+              contractorRepos = contractorRepos.filter(r => r.name === targetRepo);
+              if (contractorRepos.length === 0) {
+                console.log(`Target repo "${targetRepo}" not found`);
+                return;
+              }
+            }
+
+            console.log(`Found ${contractorRepos.length} contractor repos`);
+
+            // Resolve template HEAD
+            const { data: templateHeadRef } = await github.rest.git.getRef({
+              owner: templateOwner,
+              repo: templateRepo,
+              ref: 'heads/main',
+            });
+            const templateHeadSha = templateHeadRef.object.sha;
+            console.log(`Template HEAD: ${templateHeadSha}`);
+
+            // Enumerate every file in the template tree (recursive)
+            const { data: templateTree } = await github.rest.git.getTree({
+              owner: templateOwner,
+              repo: templateRepo,
+              tree_sha: templateHeadSha,
+              recursive: 'true',
+            });
+
+            const syncableFiles = templateTree.tree.filter(entry =>
+              entry.type === 'blob' &&
+              !skipFiles.has(entry.path) &&
+              !skipPrefixes.some(prefix => entry.path.startsWith(prefix))
+            );
+
+            console.log(`Syncable files (${syncableFiles.length}): ${syncableFiles.map(f => f.path).join(', ')}`);
+
+            if (syncableFiles.length === 0) {
+              console.log('No files to sync');
+              return;
+            }
+
+            const branchName = `template-sync-${templateHeadSha.substring(0, 7)}`;
+
+            // Track results for summary
+            const results = { forced: [], optional: [], failed: [] };
+
+            for (const repo of contractorRepos) {
+              try {
+                const defaultBranch = repo.default_branch;
+
+                // ── Read the site's current version ──
+                let siteVersion = '0.0.0';
+                try {
+                  const { data: siteMetaFile } = await github.rest.repos.getContent({
+                    owner: templateOwner,
+                    repo: repo.name,
+                    path: '.boatwork-template',
+                    ref: defaultBranch,
+                  });
+                  if ('content' in siteMetaFile) {
+                    const siteMeta = JSON.parse(Buffer.from(siteMetaFile.content, 'base64').toString());
+                    siteVersion = siteMeta.templateVersion || '0.0.0';
+                  }
+                } catch {
+                  console.log(`Could not read .boatwork-template from ${repo.name}, assuming 0.0.0`);
+                }
+
+                console.log(`${repo.name}: site=${siteVersion}, template=${templateVersion}`);
+
+                // Skip if already up to date or site is ahead of template
+                if (siteVersion === templateVersion) {
+                  console.log(`${repo.name} is already at ${templateVersion}, skipping`);
+                  continue;
+                }
+                if (!isNewerVersion(templateVersion, siteVersion)) {
+                  console.log(`${repo.name} is at ${siteVersion} which is ahead of template ${templateVersion}, skipping`);
+                  continue;
+                }
+
+                // Determine merge strategy
+                const doForce = forceUpgrade || shouldForceUpgrade(templateVersion, siteVersion);
+                const upgradeType = doForce ? 'FORCE' : 'OPTIONAL';
+                console.log(`${repo.name}: ${upgradeType} upgrade (${siteVersion} -> ${templateVersion})`);
+
+                // Get current HEAD SHA and its tree SHA in the downstream repo
+                const { data: headRef } = await github.rest.git.getRef({
+                  owner: templateOwner,
+                  repo: repo.name,
+                  ref: `heads/${defaultBranch}`,
+                });
+                const headSha = headRef.object.sha;
+
+                const { data: headCommit } = await github.rest.git.getCommit({
+                  owner: templateOwner,
+                  repo: repo.name,
+                  commit_sha: headSha,
+                });
+                const baseTreeSha = headCommit.tree.sha;
+
+                // Build tree entries — one blob per syncable file
+                const treeEntries = [];
+
+                for (const file of syncableFiles) {
+                  try {
+                    const { data: content } = await github.rest.repos.getContent({
+                      owner: templateOwner,
+                      repo: templateRepo,
+                      path: file.path,
+                      ref: templateHeadSha,
+                    });
+
+                    if (!('content' in content)) continue;
+
+                    const { data: blob } = await github.rest.git.createBlob({
+                      owner: templateOwner,
+                      repo: repo.name,
+                      content: content.content,
+                      encoding: 'base64',
+                    });
+
+                    treeEntries.push({
+                      path: file.path,
+                      mode: '100644',
+                      type: 'blob',
+                      sha: blob.sha,
+                    });
+                  } catch (err) {
+                    console.error(`Failed to prepare ${file.path} for ${repo.name}:`, err.message);
+                  }
+                }
+
+                // Update .boatwork-template — preserve contractor-specific fields,
+                // only bump templateVersion so the site reports the correct version.
+                try {
+                  const { data: siteMetaFile } = await github.rest.repos.getContent({
+                    owner: templateOwner,
+                    repo: repo.name,
+                    path: '.boatwork-template',
+                    ref: defaultBranch,
+                  });
+                  if ('content' in siteMetaFile) {
+                    const siteMeta = JSON.parse(Buffer.from(siteMetaFile.content, 'base64').toString());
+                    siteMeta.templateVersion = templateVersion;
+                    const updatedContent = Buffer.from(JSON.stringify(siteMeta, null, 2) + '\n').toString('base64');
+                    const { data: metaBlob } = await github.rest.git.createBlob({
+                      owner: templateOwner,
+                      repo: repo.name,
+                      content: updatedContent,
+                      encoding: 'base64',
+                    });
+                    treeEntries.push({
+                      path: '.boatwork-template',
+                      mode: '100644',
+                      type: 'blob',
+                      sha: metaBlob.sha,
+                    });
+                  }
+                } catch (err) {
+                  console.error(`Failed to update .boatwork-template version in ${repo.name}:`, err.message);
+                }
+
+                if (treeEntries.length === 0) {
+                  console.log(`No valid files to sync to ${repo.name}`);
+                  continue;
+                }
+
+                // Create a single tree with all changes
+                const { data: newTree } = await github.rest.git.createTree({
+                  owner: templateOwner,
+                  repo: repo.name,
+                  base_tree: baseTreeSha,
+                  tree: treeEntries,
+                });
+
+                const commitMsg = doForce
+                  ? `chore: ${upgradeType} template upgrade to v${templateVersion} (${templateHeadSha.substring(0, 7)})`
+                  : `chore: template update available v${templateVersion} (${templateHeadSha.substring(0, 7)})`;
+
+                const { data: newCommit } = await github.rest.git.createCommit({
+                  owner: templateOwner,
+                  repo: repo.name,
+                  message: `${commitMsg}\n\nFiles updated: ${treeEntries.map(e => e.path).join(', ')}`,
+                  tree: newTree.sha,
+                  parents: [headSha],
+                  author: {
+                    name: 'Andi Anderson',
+                    email: 'andi@sailplan.com',
+                    date: new Date().toISOString(),
+                  },
+                });
+
+                // Create or update branch
+                try {
+                  await github.rest.git.createRef({
+                    owner: templateOwner,
+                    repo: repo.name,
+                    ref: `refs/heads/${branchName}`,
+                    sha: newCommit.sha,
+                  });
+                } catch (e) {
+                  console.log(`Branch ${branchName} already exists in ${repo.name}, updating`);
+                  await github.rest.git.updateRef({
+                    owner: templateOwner,
+                    repo: repo.name,
+                    ref: `heads/${branchName}`,
+                    sha: newCommit.sha,
+                    force: true,
+                  });
+                }
+
+                // Close stale template-sync PRs before opening a new one
+                try {
+                  const { data: existingPrs } = await github.rest.pulls.list({
+                    owner: templateOwner,
+                    repo: repo.name,
+                    state: 'open',
+                    per_page: 50,
+                  });
+                  const stalePrs = existingPrs.filter(pr =>
+                    pr.head.ref.startsWith('template-sync-') && pr.head.ref !== branchName
+                  );
+                  for (const stalePr of stalePrs) {
+                    await github.rest.pulls.update({
+                      owner: templateOwner,
+                      repo: repo.name,
+                      pull_number: stalePr.number,
+                      state: 'closed',
+                    });
+                    // Clean up the stale branch
+                    try {
+                      await github.rest.git.deleteRef({
+                        owner: templateOwner,
+                        repo: repo.name,
+                        ref: `heads/${stalePr.head.ref}`,
+                      });
+                    } catch { /* branch may already be deleted */ }
+                    console.log(`Closed stale PR #${stalePr.number} (${stalePr.head.ref}) in ${repo.name}`);
+                  }
+                } catch (err) {
+                  console.warn(`Failed to clean stale PRs in ${repo.name}:`, err.message);
+                }
+
+                // Open PR
+                const prLabels = doForce ? ['auto-upgrade', 'template-sync'] : ['template-sync', 'review-needed'];
+                const prTitle = doForce
+                  ? `⚡ REQUIRED: Template upgrade to v${templateVersion}`
+                  : `Template update available: v${templateVersion}`;
+                const prBody = [
+                  `Automated template sync from [marine-pro-website-template](https://github.com/${templateOwner}/${templateRepo}/commit/${templateHeadSha}).`,
+                  '',
+                  `**Upgrade type:** ${doForce ? '🔴 Force (major/minor version change)' : '🟡 Optional (patch update)'}`,
+                  `**Version change:** ${siteVersion} → ${templateVersion}`,
+                  `**Files updated:** ${treeEntries.length}`,
+                  `**Template commit:** ${templateHeadSha.substring(0, 7)}`,
+                  '',
+                  doForce
+                    ? '⚡ This PR will be auto-merged because it contains a major or minor version change (security fix, breaking change, or new feature).'
+                    : '📋 This is a patch update. Review and merge when ready.',
+                  '',
+                  '⚠️ `src/site.config.ts` is never overwritten by this sync. `.boatwork-template` has its `templateVersion` updated while preserving contractor-specific fields.',
+                ].join('\n');
+
+                try {
+                  const { data: pr } = await github.rest.pulls.create({
+                    owner: templateOwner,
+                    repo: repo.name,
+                    title: prTitle,
+                    body: prBody,
+                    head: branchName,
+                    base: defaultBranch,
+                  });
+                  console.log(`Opened PR #${pr.number} in ${repo.name}: ${pr.html_url}`);
+
+                  // Apply labels
+                  try {
+                    await github.rest.issues.addLabels({
+                      owner: templateOwner,
+                      repo: repo.name,
+                      issue_number: pr.number,
+                      labels: prLabels,
+                    });
+                  } catch { /* labels may not exist */ }
+
+                  // Auto-merge only if force upgrade
+                  if (doForce) {
+                    try {
+                      await github.rest.pulls.merge({
+                        owner: templateOwner,
+                        repo: repo.name,
+                        pull_number: pr.number,
+                        merge_method: 'squash',
+                        commit_title: `chore: force template upgrade to v${templateVersion}`,
+                      });
+                      console.log(`Auto-merged PR #${pr.number} in ${repo.name}`);
+                      results.forced.push(repo.name);
+                    } catch (mergeErr) {
+                      console.error(`Failed to auto-merge PR #${pr.number} in ${repo.name}:`, mergeErr.message);
+                      results.failed.push({ repo: repo.name, error: mergeErr.message });
+                    }
+                  } else {
+                    console.log(`PR #${pr.number} in ${repo.name} left open for review (patch update)`);
+                    results.optional.push(repo.name);
+                  }
+                } catch (e) {
+                  if (e.status === 422) {
+                    console.log(`PR already exists for ${branchName} in ${repo.name}, skipping`);
+                  } else {
+                    throw e;
+                  }
+                }
+
+              } catch (err) {
+                console.error(`Failed to process ${repo.name}:`, err.message);
+                results.failed.push({ repo: repo.name, error: err.message });
+              }
+            }
+
+            // Summary
+            console.log('\n=== SYNC SUMMARY ===');
+            console.log(`Force-upgraded: ${results.forced.length} (${results.forced.join(', ') || 'none'})`);
+            console.log(`Optional PRs opened: ${results.optional.length} (${results.optional.join(', ') || 'none'})`);
+            console.log(`Failed: ${results.failed.length}`);
+            results.failed.forEach(f => console.log(`  - ${f.repo}: ${f.error}`));

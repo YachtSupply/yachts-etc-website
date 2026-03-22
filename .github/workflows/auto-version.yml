@@ -1,0 +1,58 @@
+name: Auto-bump Patch Version
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.boatwork-template'
+      - 'package.json'
+      - 'src/site.config.ts'
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    # Skip if the last commit was an auto-version bump (prevent infinite loop)
+    if: "!contains(github.event.head_commit.message, '[auto-version]')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Read current version
+        id: current
+        run: |
+          VERSION=$(jq -r '.templateVersion' .boatwork-template)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumping: $CURRENT -> $NEW_VERSION"
+
+      - name: Update version in all files
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.new_version }}"
+
+          # Update .boatwork-template
+          jq --arg v "$NEW_VERSION" '.templateVersion = $v' .boatwork-template > tmp.json && mv tmp.json .boatwork-template
+
+          # Update package.json
+          jq --arg v "$NEW_VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+
+          # Update TEMPLATE_VERSION in site.config.ts
+          sed -i "s/export const TEMPLATE_VERSION = '.*'/export const TEMPLATE_VERSION = '${NEW_VERSION}'/" src/site.config.ts
+
+      - name: Commit version bump
+        run: |
+          git config user.name "Andi Anderson"
+          git config user.email "andi@sailplan.com"
+          git add .boatwork-template package.json src/site.config.ts
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [auto-version]"
+          git push
