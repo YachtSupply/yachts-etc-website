@@ -27,14 +27,20 @@ export async function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <Image
-                src={siteConfig.logoUrl}
-                alt={siteConfig.name}
-                width={52}
-                height={52}
-                className="rounded-full object-cover"
-                unoptimized
-              />
+              {siteConfig.logoUrl ? (
+                <Image
+                  src={siteConfig.logoUrl}
+                  alt={siteConfig.name}
+                  width={52}
+                  height={52}
+                  className="rounded-full object-cover"
+                  unoptimized
+                />
+              ) : (
+                <span className="flex items-center justify-center rounded-full bg-gold text-navy font-serif font-bold flex-shrink-0" style={{ width: 52, height: 52, fontSize: 20 }}>
+                  {siteConfig.name.charAt(0)}
+                </span>
+              )}
               <span className="font-serif text-xl font-bold text-white">{siteConfig.name}</span>
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-5">{siteConfig.tagline}</p>

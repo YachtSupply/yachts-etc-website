@@ -63,6 +63,11 @@ function formatAbout(text: string) {
 export default async function AboutPage() {
   const siteConfig = await getSiteData();
 
+  const reviews = siteConfig.boatwork.staticReviews;
+  const avgRating = reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 5;
+
   return (
     <>
       {/* Hero */}
@@ -111,19 +116,36 @@ export default async function AboutPage() {
           <div className="space-y-8">
             {/* Logo + badge panel */}
             <div className="bg-cream border border-cream-dark p-8 flex flex-col items-center text-center">
-              <Image
-                src={siteConfig.logoUrl}
-                alt={siteConfig.name}
-                width={100}
-                height={100}
-                className="rounded-full mx-auto mb-6"
-                unoptimized
-              />
-              <div className="flex mb-3">
-                {[1,2,3,4,5].map((i) => <span key={i} className="text-gold text-xl">★</span>)}
-              </div>
-              <p className="font-serif text-lg text-navy mb-2">5-Star Rated on Boatwork</p>
-              <p className="text-text-light font-sans text-sm mb-6">Verified reviews from real boat owners</p>
+              {siteConfig.logoUrl ? (
+                <Image
+                  src={siteConfig.logoUrl}
+                  alt={siteConfig.name}
+                  width={100}
+                  height={100}
+                  className="rounded-full mx-auto mb-6"
+                  unoptimized
+                />
+              ) : (
+                <span className="flex items-center justify-center rounded-full bg-navy text-white font-serif font-bold mx-auto mb-6" style={{ width: 100, height: 100, fontSize: 40 }}>
+                  {siteConfig.name.charAt(0)}
+                </span>
+              )}
+              {reviews.length > 0 ? (
+                <>
+                  <div className="flex mb-3">
+                    {[1,2,3,4,5].map((i) => (
+                      <span key={i} className={`text-xl ${i <= Math.round(avgRating) ? 'text-gold' : 'text-gray-300'}`}>★</span>
+                    ))}
+                  </div>
+                  <p className="font-serif text-lg text-navy mb-2">{avgRating.toFixed(1)} Star Rated on Boatwork</p>
+                  <p className="text-text-light font-sans text-sm mb-6">Verified reviews from real boat owners</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-serif text-lg text-navy mb-2">New on Boatwork</p>
+                  <p className="text-text-light font-sans text-sm mb-6">No reviews yet — be one of the first</p>
+                </>
+              )}
               <BoatworkVerifiedBadge
                 size="sm"
                 badgeUrl={siteConfig.badge?.badgeUrl}

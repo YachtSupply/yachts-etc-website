@@ -160,16 +160,24 @@ export default async function HomePage() {
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center text-center" style={{ minHeight: '85vh' }}>
-          <div className="mb-8">
-            <Image
-              src={siteConfig.logoUrl}
-              alt={siteConfig.name}
-              width={120}
-              height={120}
-              className="rounded-full mx-auto border-2 border-gold/40"
-              unoptimized
-            />
-          </div>
+          {siteConfig.logoUrl ? (
+            <div className="mb-8">
+              <Image
+                src={siteConfig.logoUrl}
+                alt={siteConfig.name}
+                width={120}
+                height={120}
+                className="rounded-full mx-auto border-2 border-gold/40"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="mb-8 flex items-center justify-center">
+              <span className="flex items-center justify-center rounded-full bg-gold text-navy font-serif font-bold border-2 border-gold/40" style={{ width: 120, height: 120, fontSize: 48 }}>
+                {siteConfig.name.charAt(0)}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 mb-6">
             <div className="h-px w-12 bg-gold/60" />
@@ -276,14 +284,20 @@ export default async function HomePage() {
           </div>
           <div className="bg-cream border border-cream-dark p-8 flex flex-col items-center text-center">
             <div className="mb-6">
-              <Image
-                src={siteConfig.logoUrl}
-                alt={siteConfig.name}
-                width={100}
-                height={100}
-                className="rounded-full mx-auto"
-                unoptimized
-              />
+              {siteConfig.logoUrl ? (
+                <Image
+                  src={siteConfig.logoUrl}
+                  alt={siteConfig.name}
+                  width={100}
+                  height={100}
+                  className="rounded-full mx-auto"
+                  unoptimized
+                />
+              ) : (
+                <span className="flex items-center justify-center rounded-full bg-navy text-white font-serif font-bold mx-auto" style={{ width: 100, height: 100, fontSize: 40 }}>
+                  {siteConfig.name.charAt(0)}
+                </span>
+              )}
             </div>
             {reviews.length > 0 ? (
               <>

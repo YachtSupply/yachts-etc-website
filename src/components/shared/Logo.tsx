@@ -14,17 +14,29 @@ export function Logo({ size = 'md', inverted = false, logoUrl, name }: LogoProps
   const textSize = { sm: 'text-lg', md: 'text-xl', lg: 'text-2xl' }[size];
   const src = logoUrl || siteConfig.logoUrl;
   const displayName = name || siteConfig.name;
+  const hasLogo = !!src;
 
   return (
     <Link href="/" className="flex items-center gap-3 group">
-      <Image
-        src={src}
-        alt={displayName}
-        width={imgSize}
-        height={imgSize}
-        className="rounded-full object-cover flex-shrink-0"
-        unoptimized
-      />
+      {hasLogo ? (
+        <Image
+          src={src}
+          alt={displayName}
+          width={imgSize}
+          height={imgSize}
+          className="rounded-full object-cover flex-shrink-0"
+          unoptimized
+        />
+      ) : (
+        <span
+          className={`flex items-center justify-center rounded-full flex-shrink-0 font-serif font-bold ${
+            inverted ? 'bg-gold text-navy' : 'bg-navy text-white'
+          }`}
+          style={{ width: imgSize, height: imgSize, fontSize: imgSize * 0.4 }}
+        >
+          {displayName.charAt(0)}
+        </span>
+      )}
       <span
         className={`font-serif font-bold tracking-tight ${textSize} ${
           inverted ? 'text-white' : 'text-navy'
