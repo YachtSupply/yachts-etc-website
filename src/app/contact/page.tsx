@@ -24,7 +24,7 @@ export default async function ContactPage() {
   const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const formatHours = (h: string) => h === 'Open' ? 'Open All Day' : h;
   const mapQuery = [siteConfig.address, siteConfig.city, siteConfig.state].filter(Boolean).join(', ');
-  const hasBadge = !!(siteConfig.badge && (siteConfig.badge.svgUrl || siteConfig.badge.embedCode || siteConfig.badge.badgeUrl));
+  const hasBadge = siteConfig.badges.length > 0 || !!(siteConfig.badge && (siteConfig.badge.svgUrl || siteConfig.badge.embedCode || siteConfig.badge.badgeUrl));
 
   return (
     <>
@@ -158,17 +158,31 @@ export default async function ContactPage() {
             )}
 
             {hasBadge && (
-              <div className="bg-white border border-gold/30 p-6 flex items-center justify-between">
+              <div className="bg-white border border-gold/30 p-6 flex items-center justify-between gap-4">
                 <div>
                   <p className="font-serif font-semibold text-navy mb-1">Verified on Boatwork</p>
                   <p className="text-text-light font-sans text-xs">Read reviews from real clients</p>
                 </div>
-                <BoatworkBadge
-                  profileUrl={siteConfig.badge?.profileUrl ?? siteConfig.boatwork.profileUrl}
-                  badgeUrl={siteConfig.badge?.badgeUrl}
-                  svgUrl={siteConfig.badge?.svgUrl}
-                  embedCode={siteConfig.badge?.embedCode}
-                />
+                <div className="flex flex-wrap gap-2">
+                  {siteConfig.badges.length > 0 ? (
+                    siteConfig.badges.map((b, i) => (
+                      <BoatworkBadge
+                        key={b.id ?? i}
+                        profileUrl={b.profileUrl ?? siteConfig.boatwork.profileUrl}
+                        badgeUrl={b.badgeUrl}
+                        svgUrl={b.svgUrl}
+                        embedCode={b.embedCode}
+                      />
+                    ))
+                  ) : (
+                    <BoatworkBadge
+                      profileUrl={siteConfig.badge?.profileUrl ?? siteConfig.boatwork.profileUrl}
+                      badgeUrl={siteConfig.badge?.badgeUrl}
+                      svgUrl={siteConfig.badge?.svgUrl}
+                      embedCode={siteConfig.badge?.embedCode}
+                    />
+                  )}
+                </div>
               </div>
             )}
 

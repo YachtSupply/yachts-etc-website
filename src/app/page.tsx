@@ -309,6 +309,14 @@ export default async function HomePage() {
                 pixelUrl={siteConfig.badge?.pixelUrl}
                 profileUrl={siteConfig.badge?.profileUrl}
               />
+            {siteConfig.averageResponseTime && (
+              <div className="mt-4 inline-flex items-center gap-1.5 bg-cream border border-cream-dark px-3 py-1.5 rounded-full">
+                <FiClock className="text-gold flex-shrink-0" size={12} />
+                <span className="text-navy font-sans text-xs font-semibold">
+                  Responds in {siteConfig.averageResponseTime}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </SectionWrapper>
@@ -327,8 +335,8 @@ export default async function HomePage() {
               <h2 className="font-serif text-4xl font-bold text-navy mb-4">What Our Clients Say</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-cream-dark">
-              {siteConfig.boatwork.staticReviews.map((r) => (
-                <div key={r.author} className="bg-cream">
+              {siteConfig.boatwork.staticReviews.map((r, i) => (
+                <div key={r.id ?? `${r.author}-${i}`} className="bg-cream">
                   <ReviewCard {...r} />
                 </div>
               ))}
