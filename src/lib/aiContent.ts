@@ -56,10 +56,13 @@ export function buildFallbackContent(profile: BoatworkProfile): GeneratedContent
       `yacht management ${state}`,
     ],
     serviceDescriptions: Object.fromEntries(
-      (profile.services.length > 0 ? profile.services : profile.specialties).map((s) => [
-        s.name,
-        ('description' in s ? s.description : null) ?? `Professional ${s.name.toLowerCase()} services in ${city}, ${state}.`,
-      ]),
+      (profile.services.length > 0 ? profile.services : profile.specialties).map((s) => {
+        const sp = profile.specialties.find((sp) => sp.name === s.name);
+        return [
+          s.name,
+          sp?.longDescription ?? sp?.shortDescription ?? ('description' in s ? s.description : null) ?? `${profile.name} offers professional ${s.name.toLowerCase()} services in ${city}, ${state}.`,
+        ];
+      }),
     ),
     serviceAreaDescription: profile.serviceArea.length > 0
       ? `Serving yacht owners across ${profile.serviceArea.join(', ')}.`

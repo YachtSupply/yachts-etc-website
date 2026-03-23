@@ -28,7 +28,7 @@ export function ServiceCard({ name, description, icon, keywords, benefits, price
         {iconMap[icon] ?? iconMap.anchor}
       </div>
       <h3 className="font-serif text-lg font-semibold text-navy mb-3">{name}</h3>
-      <p className="text-text-light text-sm leading-relaxed font-sans">{description}</p>
+      <p className="text-text-light text-sm leading-relaxed font-sans line-clamp-4 flex-1">{description}</p>
       {(priceRange || typicalDuration) && (
         <div className="flex flex-wrap gap-3 mt-4">
           {priceRange && (

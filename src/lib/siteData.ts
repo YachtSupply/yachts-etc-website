@@ -158,10 +158,8 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
             name: s.name,
             description:
               ai.serviceDescriptions[s.name] ??
-              sp?.shortDescription ??
-              s.description ??
               siteConfig.services.find((sc) => sc.name === s.name)?.description ??
-              `Professional ${s.name.toLowerCase()} services.`,
+              `${profile.name} offers professional ${s.name.toLowerCase()} services in ${profile.city ?? 'South Florida'}, ${profile.state ?? 'FL'}.`,
             icon: findIcon(s.name),
             keywords: ai.serviceKeywords?.[s.name] ?? [],
             benefits: sp?.benefits ?? [],
@@ -172,7 +170,7 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
       : profile.specialties.length > 0
       ? profile.specialties.map((s) => ({
           name: s.name,
-          description: ai.serviceDescriptions[s.name] ?? s.shortDescription ?? `Professional ${s.name.toLowerCase()} services.`,
+          description: ai.serviceDescriptions[s.name] ?? `${profile.name} offers professional ${s.name.toLowerCase()} services in ${profile.city ?? 'South Florida'}, ${profile.state ?? 'FL'}.`,
           icon: findIcon(s.name),
           keywords: ai.serviceKeywords?.[s.name] ?? [],
           benefits: s.benefits ?? [],

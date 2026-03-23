@@ -25,13 +25,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_PATH = path.join(__dirname, '..', 'src', 'data', 'generated-content.json');
 
 // Increment this when the AI prompt or GeneratedContent shape changes significantly.
-const CONTENT_VERSION = '2';
+const CONTENT_VERSION = '3';
 
 // ---------- Types ----------
 
 interface BoatworkService {
   name: string;
   description?: string | null;
+  shortDescription?: string | null;
+  longDescription?: string | null;
 }
 
 interface BoatworkProfile {
@@ -127,8 +129,18 @@ async function fetchProfile(slug: string): Promise<BoatworkProfile> {
     rating: (p.rating ?? null) as number | null,
     reviewCount: (p.reviewCount ?? p.review_count ?? 0) as number,
     reviews: (p.reviews ?? []) as unknown[],
-    services: (p.services ?? []) as BoatworkService[],
-    specialties: (p.specialties ?? []) as BoatworkService[],
+    services: ((p.services ?? []) as Record<string, unknown>[]).map((s) => ({
+      name: (s.name ?? '') as string,
+      description: (s.description ?? null) as string | null,
+      shortDescription: (s.shortDescription ?? s.short_description ?? null) as string | null,
+      longDescription: (s.longDescription ?? s.long_description ?? null) as string | null,
+    })),
+    specialties: ((p.specialties ?? []) as Record<string, unknown>[]).map((s) => ({
+      name: (s.name ?? '') as string,
+      description: (s.description ?? null) as string | null,
+      shortDescription: (s.shortDescription ?? s.short_description ?? null) as string | null,
+      longDescription: (s.longDescription ?? s.long_description ?? null) as string | null,
+    })),
     photos: (p.photos ?? []) as unknown[],
     videos: (p.videos ?? []) as unknown[],
     serviceArea: (p.serviceArea ?? p.service_area ?? []) as string[],
@@ -159,10 +171,13 @@ function buildFallbackContent(profile: BoatworkProfile): GeneratedContent {
       `yacht management ${state}`,
     ],
     serviceDescriptions: Object.fromEntries(
-      (profile.services.length > 0 ? profile.services : profile.specialties).map((s) => [
-        s.name,
-        s.description ?? `Professional ${s.name.toLowerCase()} services in ${city}, ${state}.`,
-      ]),
+      (profile.services.length > 0 ? profile.services : profile.specialties).map((s) => {
+        const sp = profile.specialties.find((sp) => sp.name === s.name);
+        return [
+          s.name,
+          sp?.description ?? s.description ?? `${profile.name} offers professional ${s.name.toLowerCase()} services in ${city}, ${state}.`,
+        ];
+      }),
     ),
     serviceAreaDescription: profile.serviceArea.length > 0
       ? `Serving yacht owners across ${profile.serviceArea.join(', ')}.`
@@ -199,8 +214,18 @@ Rules:
 
   const serviceList = profile.services.length > 0 ? profile.services : profile.specialties;
   const serviceDescriptionsTemplate = serviceList
-    .map((s) => `  "${s.name}": "one SEO-friendly sentence specific to this service"`)
+    .map((s) => `  "${s.name}": "2-4 sentence keyword-rich description for this service card"`)
     .join(',\n');
+
+  // Build context block with existing specialty descriptions so the AI can
+  // transform them into keyword-rich card copy rather than guessing.
+  const specialtyContext = profile.specialties
+    .filter((s) => s.longDescription || s.shortDescription || s.description)
+    .map((s) => {
+      const desc = s.longDescription ?? s.shortDescription ?? s.description ?? '';
+      return `- ${s.name}: ${desc.slice(0, 400)}`;
+    })
+    .join('\n');
 
   const userPrompt = `Generate SEO-enriched website content for this marine contractor. Return ONLY valid JSON with no markdown code fences.
 
@@ -210,6 +235,7 @@ Specialties: ${specialtyNames}
 Services: ${serviceNames}
 Service area: ${areas}
 Original description: ${profile.description ? profile.description.slice(0, 500) : 'N/A'}
+${specialtyContext ? `\nSpecialty details (use these to inform your service descriptions — do NOT copy verbatim):\n${specialtyContext}\n` : ''}
 
 Return this exact JSON structure:
 {
@@ -225,13 +251,13 @@ ${serviceDescriptionsTemplate}
   "commonProjects": ["5-7 concise 8-15 word bullet items describing types of projects a boat owner would need done, derived from specialties: ${specialtyNames}"]
 }
 
-IMPORTANT: In serviceDescriptions, write a unique, specific 1-sentence description for each service that explains what ${profile.name} actually does for that service — not generic filler. Use the exact service names shown above as the JSON keys.`;
+IMPORTANT: In serviceDescriptions, write a unique, keyword-rich 2-4 sentence description (roughly 40-60 words each) for each service. Use the specialty details above as context to explain what ${profile.name} actually does — covering scope of work, expertise, and what clients can expect. Transform the source material into SEO-friendly card copy; do NOT copy descriptions verbatim. Use the exact service names shown above as the JSON keys.`;
 
   console.log('[generate-content] Calling Claude...');
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
+    max_tokens: 4000,
     temperature: 0.7,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
