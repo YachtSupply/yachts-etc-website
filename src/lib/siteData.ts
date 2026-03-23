@@ -43,13 +43,24 @@ function loadGeneratedContent(profile: BoatworkProfile): GeneratedContent {
 
 // ---------- Return type ----------
 
-export type SiteData = Omit<typeof siteConfig, 'hoursOfOperation' | 'services'> & {
+export type SiteData = Omit<typeof siteConfig, 'hoursOfOperation' | 'services' | 'boatwork'> & {
   badge: BoatworkProfile['badge'];
+  badges: BoatworkProfile['badges'];
+  boatwork: {
+    profileSlug: string;
+    profileId: string;
+    profileUrl: string;
+    logoUrl: string;
+    useLiveReviews: boolean;
+    staticReviews: BoatworkProfile['reviews'];
+  };
   hoursOfOperation: Record<string, string> | null;
   serviceAreaTitle: string;
   yearEstablished: number | null;
   websiteTheme: string;
-  services: { name: string; description: string; icon: string; keywords?: string[] }[];
+  averageResponseTime: string | null;
+  services: { name: string; description: string; icon: string; keywords?: string[]; benefits?: string[]; priceRange?: string | null; typicalDuration?: string | null }[];
+  specialties: BoatworkProfile['specialties'];
 };
 
 // ---------- Icon mapping ----------
@@ -82,32 +93,10 @@ function trimToSentence(text: string | null | undefined, maxLength: number): str
   return slice.replace(/\s+\S+$/, '') + '…';
 }
 
-// Generate a list of nearby service-area cities based on the contractor's city
-function getNearbyAreas(city: string | null, state: string | null): string[] {
+// Generate a fallback service area list from the contractor's city/state.
+// Actual locality data should come from the API or AI-generated content.
+function getFallbackArea(city: string | null, state: string | null): string[] {
   if (!city) return [];
-  const c = city.toLowerCase().trim();
-  if (c === 'fort lauderdale') {
-    return ['Fort Lauderdale', 'Miami', 'Hollywood', 'Pompano Beach', 'Deerfield Beach', 'Boca Raton'];
-  }
-  if (c === 'miami' || c === 'miami beach') {
-    return ['Miami', 'Miami Beach', 'Fort Lauderdale', 'Coral Gables', 'Hialeah', 'Key Biscayne'];
-  }
-  if (c === 'palm beach' || c === 'west palm beach') {
-    return ['West Palm Beach', 'Palm Beach', 'Boynton Beach', 'Delray Beach', 'Boca Raton', 'Lake Worth'];
-  }
-  if (c === 'naples') {
-    return ['Naples', 'Marco Island', 'Bonita Springs', 'Cape Coral', 'Fort Myers', 'Estero'];
-  }
-  if (c === 'tampa') {
-    return ['Tampa', 'St. Petersburg', 'Clearwater', 'Sarasota', 'Bradenton', 'Tierra Verde'];
-  }
-  if (c === 'sarasota') {
-    return ['Sarasota', 'Bradenton', 'Venice', 'Osprey', 'Tampa', 'St. Petersburg'];
-  }
-  if (c === 'jacksonville') {
-    return ['Jacksonville', 'Atlantic Beach', 'Neptune Beach', 'Fernandina Beach', 'St. Augustine', 'Ponte Vedra'];
-  }
-  // Generic fallback — city + state
   return state ? [city, `${city}, ${state}`] : [city];
 }
 
@@ -129,39 +118,79 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
   const profile = await fetchBoatworkProfile(PROFILE_SLUG, PROFILE_ID || undefined);
 
   // If API is down, return static config unchanged
-  if (!profile) return { ...siteConfig, badge: null, serviceAreaTitle: 'Our Service Area', yearEstablished: null, websiteTheme: 'navy-gold' };
+  if (!profile) {
+    // Normalize static reviews to the enriched shape expected by SiteData
+    const fallbackReviews: BoatworkProfile['reviews'] = siteConfig.boatwork.staticReviews.map((r) => ({
+      id: ('id' in r ? (r as Record<string, unknown>).id as string | null : null),
+      author: r.author,
+      rating: r.rating,
+      text: r.text,
+      date: r.date,
+      isVerified: ('isVerified' in r ? !!(r as Record<string, unknown>).isVerified : false),
+      response: ('response' in r ? (r as Record<string, unknown>).response as string | null : null),
+      responseDate: ('responseDate' in r ? (r as Record<string, unknown>).responseDate as string | null : null),
+    }));
+    return {
+      ...siteConfig,
+      badge: null,
+      badges: [],
+      boatwork: { ...siteConfig.boatwork, staticReviews: fallbackReviews },
+      serviceAreaTitle: 'Our Service Area',
+      yearEstablished: null,
+      websiteTheme: 'navy-gold',
+      averageResponseTime: null,
+      specialties: [],
+    };
+  }
 
   // Load AI-generated content from pre-build JSON (written by scripts/generate-content.ts)
   const ai = loadGeneratedContent(profile);
 
+  // Build a lookup from specialty name → rich data for enriching service cards
+  const specialtyLookup = new Map(profile.specialties.map((sp) => [sp.name, sp]));
+
   // Map API services to the shape expected by ServiceCard
   const services =
     profile.services.length > 0
-      ? profile.services.map((s) => ({
-          name: s.name,
-          description:
-            ai.serviceDescriptions[s.name] ??
-            s.description ??
-            siteConfig.services.find((sc) => sc.name === s.name)?.description ??
-            `Professional ${s.name.toLowerCase()} services.`,
-          icon: findIcon(s.name),
-          keywords: ai.serviceKeywords?.[s.name] ?? [],
-        }))
+      ? profile.services.map((s) => {
+          const sp = specialtyLookup.get(s.name);
+          return {
+            name: s.name,
+            description:
+              ai.serviceDescriptions[s.name] ??
+              sp?.shortDescription ??
+              s.description ??
+              siteConfig.services.find((sc) => sc.name === s.name)?.description ??
+              `Professional ${s.name.toLowerCase()} services.`,
+            icon: findIcon(s.name),
+            keywords: ai.serviceKeywords?.[s.name] ?? [],
+            benefits: sp?.benefits ?? [],
+            priceRange: sp?.priceRange ?? null,
+            typicalDuration: sp?.typicalDuration ?? null,
+          };
+        })
       : profile.specialties.length > 0
       ? profile.specialties.map((s) => ({
           name: s.name,
-          description: ai.serviceDescriptions[s.name] ?? `Professional ${s.name.toLowerCase()} services.`,
+          description: ai.serviceDescriptions[s.name] ?? s.shortDescription ?? `Professional ${s.name.toLowerCase()} services.`,
           icon: findIcon(s.name),
           keywords: ai.serviceKeywords?.[s.name] ?? [],
+          benefits: s.benefits ?? [],
+          priceRange: s.priceRange ?? null,
+          typicalDuration: s.typicalDuration ?? null,
         }))
       : siteConfig.services;
 
   // Map API reviews (up to 5 most recent) — empty if profile has none
   const staticReviews = profile.reviews.slice(0, 5).map((r) => ({
+    id: r.id,
     author: r.author,
     rating: r.rating,
     text: r.text,
     date: r.date,
+    isVerified: r.isVerified,
+    response: r.response,
+    responseDate: r.responseDate,
   }));
 
   // Map API photos to portfolio shape — empty if profile has none
@@ -239,7 +268,7 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
         profile.serviceArea.length > 2 ||
         (profile.serviceArea.length > 0 && !profile.serviceArea.some((a) => a.endsWith(' area')));
       if (hasRealServiceArea) return profile.serviceArea.slice(0, 5);
-      const nearby = getNearbyAreas(profile.city, profile.state);
+      const nearby = getFallbackArea(profile.city, profile.state);
       return (nearby.length > 0 ? nearby : siteConfig.serviceArea).slice(0, 5);
     })(),
     serviceAreaDescription: profile.city
@@ -283,7 +312,10 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
     },
 
     badge: profile.badge,
+    badges: profile.badges,
     yearEstablished: profile.yearEstablished,
     websiteTheme: profile.websiteTheme ?? 'navy-gold',
+    averageResponseTime: profile.averageResponseTime,
+    specialties: profile.specialties,
   };
 });

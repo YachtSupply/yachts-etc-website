@@ -22,6 +22,21 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ServicesPage() {
   const siteConfig = await getSiteData();
 
+  // Collect all FAQs from specialties for the FAQ accordion + structured data
+  const allFaqs = siteConfig.specialties.flatMap((sp) =>
+    sp.faqs.map((faq) => ({ ...faq, specialty: sp.name }))
+  );
+
+  const faqSchema = allFaqs.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: allFaqs.map((f) => ({
+      '@type': 'Question',
+      name: f.question,
+      acceptedAnswer: { '@type': 'Answer', text: f.answer },
+    })),
+  } : null;
+
   return (
     <>
       <section className="bg-hero-gradient text-white py-24 px-4 text-center">
@@ -130,6 +145,49 @@ export default async function ServicesPage() {
           </div>
         </div>
       </SectionWrapper>
+
+      {/* FAQ Accordion — rendered when specialties have FAQ data */}
+      {allFaqs.length > 0 && (
+        <>
+          <div className="gold-rule-full" />
+          <SectionWrapper variant="cream">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-10">
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <div className="h-px w-8 bg-gold/60" />
+                  <GiAnchor className="text-gold" size={20} />
+                  <div className="h-px w-8 bg-gold/60" />
+                </div>
+                <h2 className="font-serif text-3xl font-bold text-navy mb-4">Frequently Asked Questions</h2>
+                <p className="text-text-light font-sans max-w-xl mx-auto">
+                  Common questions about our marine services.
+                </p>
+              </div>
+              <div className="space-y-px bg-cream-dark border border-cream-dark">
+                {allFaqs.map((faq, i) => (
+                  <details key={i} className="group bg-white">
+                    <summary className="cursor-pointer list-none px-6 py-5 flex items-center justify-between gap-4 hover:bg-cream/50 transition-colors">
+                      <span className="font-sans font-semibold text-navy text-sm">{faq.question}</span>
+                      <span className="text-gold text-lg flex-shrink-0 transition-transform group-open:rotate-45">+</span>
+                    </summary>
+                    <div className="px-6 pb-5 pt-0">
+                      <p className="text-text font-sans text-sm leading-relaxed">{faq.answer}</p>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </SectionWrapper>
+        </>
+      )}
+
+      {/* FAQPage structured data */}
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
     </>
   );
 }

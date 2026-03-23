@@ -12,10 +12,14 @@ const BOATWORK_API = 'https://boatwork.co/api/v1';
 // ---------- Public types ----------
 
 export interface BoatworkReview {
+  id: string | null;
   author: string;
   rating: number;
   text: string;
   date: string;
+  isVerified: boolean;
+  response: string | null;
+  responseDate: string | null;
 }
 
 export interface BoatworkService {
@@ -38,9 +42,17 @@ export interface BoatworkSpecialty {
   id: string;
   name: string;
   slug: string;
+  shortDescription: string | null;
+  longDescription: string | null;
+  benefits: string[];
+  priceRange: string | null;
+  typicalDuration: string | null;
+  faqs: Array<{ question: string; answer: string }>;
 }
 
 export interface BoatworkBadge {
+  id: string | null;
+  name: string | null;
   token: string | null;
   badgeUrl: string | null;
   svgUrl: string | null;
@@ -54,7 +66,9 @@ export interface BoatworkProfile {
   name: string;
   slug: string;
   tagline: string | null;
+  /** @deprecated Use `badges` array instead. Kept for backwards compatibility. */
   badge: BoatworkBadge | null;
+  badges: BoatworkBadge[];
   description: string | null;
   phone: string | null;
   email: string | null;
@@ -78,6 +92,7 @@ export interface BoatworkProfile {
   updatedAt: string;
   hoursOfOperation: Record<string, string> | null;
   websiteTheme: string | null;
+  averageResponseTime: string | null;
   social: {
     facebook: string | null;
     instagram: string | null;
@@ -102,7 +117,33 @@ function normalizeReview(raw: Record<string, unknown>): BoatworkReview | null {
   const text = asString(raw.text) ?? asString(raw.body) ?? asString(raw.content);
   const date = asString(raw.date) ?? asString(raw.createdAt) ?? '';
   if (!author || rating === null || !text) return null;
-  return { author, rating, text, date };
+  return {
+    id: asString(raw.id),
+    author,
+    rating,
+    text,
+    date,
+    isVerified: raw.isVerified === true || raw.verified === true,
+    response: asString(raw.response) ?? asString(raw.contractorResponse),
+    responseDate: asString(raw.responseDate) ?? asString(raw.respondedAt),
+  };
+}
+
+function normalizeBadge(raw: Record<string, unknown>, slug: string): BoatworkBadge | null {
+  const isVerified = raw.isVerified === true || raw.verified === true;
+  const profileUrl = asString(raw.profileUrl) ?? `https://boatwork.co/pro/${slug}/`;
+  if (!isVerified && !asString(raw.badgeUrl) && !asString(raw.svgUrl)) return null;
+  return {
+    id: asString(raw.id),
+    name: asString(raw.name) ?? asString(raw.badgeName),
+    token: asString(raw.token),
+    badgeUrl: asString(raw.badgeUrl),
+    svgUrl: asString(raw.svgUrl) ?? asString(raw.svg_url),
+    embedCode: asString(raw.embedCode) ?? asString(raw.embed_code),
+    pixelUrl: asString(raw.pixelUrl),
+    profileUrl,
+    isVerified,
+  };
 }
 
 function normalizeService(raw: Record<string, unknown>): BoatworkService | null {
@@ -195,7 +236,40 @@ export async function fetchBoatworkProfile(slug: string, profileId?: string): Pr
               const o = s as Record<string, unknown>;
               const name = asString(o.name);
               if (!name) return [];
-              return [{ id: asString(o.id) ?? '', name, slug: asString(o.slug) ?? '' }];
+              const faqsRaw = o.faqs;
+              const faqs: Array<{ question: string; answer: string }> = [];
+              if (Array.isArray(faqsRaw)) {
+                for (const f of faqsRaw) {
+                  if (typeof f === 'object' && f !== null) {
+                    const fObj = f as Record<string, unknown>;
+                    const q = asString(fObj.question) ?? asString(fObj.q);
+                    const a = asString(fObj.answer) ?? asString(fObj.a);
+                    if (q && a) faqs.push({ question: q, answer: a });
+                  }
+                }
+              } else if (typeof faqsRaw === 'string') {
+                try {
+                  const parsed = JSON.parse(faqsRaw);
+                  if (Array.isArray(parsed)) {
+                    for (const f of parsed) {
+                      if (f?.question && f?.answer) faqs.push({ question: f.question, answer: f.answer });
+                    }
+                  }
+                } catch { /* ignore */ }
+              }
+              return [{
+                id: asString(o.id) ?? '',
+                name,
+                slug: asString(o.slug) ?? '',
+                shortDescription: asString(o.shortDescription),
+                longDescription: asString(o.longDescription),
+                benefits: Array.isArray(o.benefits)
+                  ? (o.benefits as unknown[]).filter((b): b is string => typeof b === 'string')
+                  : [],
+                priceRange: asString(o.priceRange),
+                typicalDuration: asString(o.typicalDuration),
+                faqs,
+              }];
             }
             return [];
           })
@@ -221,18 +295,31 @@ export async function fetchBoatworkProfile(slug: string, profileId?: string): Pr
         linkedin: asString((raw.social as Record<string, unknown>)?.linkedin) ?? asString(raw.linkedinUrl) ?? null,
         youtube: asString((raw.social as Record<string, unknown>)?.youtube) ?? asString(raw.youtubeUrl) ?? null,
       },
+      badges: (() => {
+        // Support both `badges` array (ContractorBadge[]) and legacy single `badge` object
+        const badgesArr = raw.badges ?? raw.contractorBadges;
+        if (Array.isArray(badgesArr)) {
+          return badgesArr
+            .map((b) => (typeof b === 'object' && b !== null ? normalizeBadge(b as Record<string, unknown>, slug) : null))
+            .filter((b): b is BoatworkBadge => b !== null);
+        }
+        const single = raw.badge as Record<string, unknown> | null | undefined;
+        if (single && typeof single === 'object') {
+          const b = normalizeBadge(single, slug);
+          return b ? [b] : [];
+        }
+        return [];
+      })(),
       badge: (() => {
+        // Legacy single badge — first from badges array, or direct badge object
+        const badgesArr = raw.badges ?? raw.contractorBadges;
+        if (Array.isArray(badgesArr) && badgesArr.length > 0) {
+          const first = badgesArr[0];
+          if (typeof first === 'object' && first !== null) return normalizeBadge(first as Record<string, unknown>, slug);
+        }
         const b = raw.badge as Record<string, unknown> | null | undefined;
         if (!b || typeof b !== 'object') return null;
-        return {
-          token: asString(b.token),
-          badgeUrl: asString(b.badgeUrl),
-          svgUrl: asString(b.svgUrl) ?? asString(b.svg_url),
-          embedCode: asString(b.embedCode) ?? asString(b.embed_code),
-          pixelUrl: asString(b.pixelUrl),
-          profileUrl: asString(b.profileUrl) ?? `https://boatwork.co/pro/${slug}/`,
-          isVerified: b.isVerified === true || b.verified === true,
-        };
+        return normalizeBadge(b, slug);
       })(),
       hoursOfOperation: (() => {
         const h = raw.hoursOfOperation;
@@ -243,6 +330,7 @@ export async function fetchBoatworkProfile(slug: string, profileId?: string): Pr
         }
         return null;
       })(),
+      averageResponseTime: asString(raw.averageResponseTime) ?? asString(raw.avgResponseTime),
       websiteTheme: asString(raw.websiteTheme),
     };
 

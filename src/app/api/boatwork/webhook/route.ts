@@ -53,34 +53,31 @@ export async function POST(req: Request) {
   const { event, slug, data } = payload;
   console.log(`[boatwork/webhook] event=${event} slug=${slug}`);
 
-  // Handle each event type
-  switch (event) {
-    case 'profile.updated':
-    case 'reviews.new': {
-      // Trigger a sync to pull fresh data and revalidate pages
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/api/boatwork/sync`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
-      });
-      void fireOutboundWebhooks(event as BoatworkEventType, slug, data);
-      break;
-    }
+  // All recognized events trigger a sync to pull fresh data from the API.
+  const syncEvents = new Set([
+    'profile.updated',
+    'reviews.new',
+    'review.created',
+    'verification.badge',
+    'verification.updated',
+    'photo.added',
+    'photo.deleted',
+    'video.added',
+    'video.deleted',
+    'badge.awarded',
+    'badge.revoked',
+    'social.post.published',
+    'social.subscription.updated',
+  ]);
 
-    case 'verification.badge':
-    case 'verification.updated': {
-      // Store badge/verification status in Vercel KV or env (future: database)
-      // For now, log and trigger sync
-      console.log(`[boatwork/webhook] verification update:`, data);
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/api/boatwork/sync`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
-      });
-      void fireOutboundWebhooks('verification.updated', slug, data);
-      break;
-    }
-
-    default:
-      console.log(`[boatwork/webhook] unhandled event: ${event}`);
+  if (syncEvents.has(event)) {
+    await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/api/boatwork/sync`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
+    });
+    void fireOutboundWebhooks(event as BoatworkEventType, slug, data);
+  } else {
+    console.log(`[boatwork/webhook] unhandled event: ${event}`);
   }
 
   return NextResponse.json({ received: true, event });
@@ -90,7 +87,13 @@ export async function GET() {
   return NextResponse.json({
     endpoint: 'POST /api/boatwork/webhook',
     description: 'Receives Boatwork.co profile update webhooks',
-    events: ['profile.updated', 'reviews.new', 'verification.updated', 'verification.badge'],
+    events: [
+      'profile.updated', 'review.created', 'reviews.new',
+      'verification.updated', 'verification.badge',
+      'photo.added', 'photo.deleted', 'video.added', 'video.deleted',
+      'badge.awarded', 'badge.revoked',
+      'social.post.published', 'social.subscription.updated',
+    ],
     setup: 'Register this URL in your Boatwork Business Center → Integrations → Webhook',
   });
 }
