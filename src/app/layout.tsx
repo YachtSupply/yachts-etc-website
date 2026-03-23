@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       addressRegion: data.state,
       addressCountry: 'US',
     },
-    image: data.logoUrl,
+    image: data.logoUrl || undefined,
     sameAs: [
       data.social.facebook,
       data.social.instagram,

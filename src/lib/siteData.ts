@@ -231,7 +231,7 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
     city: profile.city || siteConfig.city,
     state: profile.state || siteConfig.state,
 
-    logoUrl: profile.logoUrl || siteConfig.logoUrl,
+    logoUrl: profile.logoUrl || '',
 
     // about uses AI-enriched text first (full paragraphs), then full profile description, then static fallback
     about: ai.about || profile.description || siteConfig.about,
