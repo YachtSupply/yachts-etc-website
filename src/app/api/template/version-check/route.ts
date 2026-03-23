@@ -1,5 +1,6 @@
 import { getTemplateVersion, parseSemver, getUpgradeType } from '@/lib/github';
-import { TEMPLATE_VERSION } from '@/site.config';
+import fs from 'fs';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,9 +29,14 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const currentVersion = searchParams.get('current') || '0.0.0';
 
-  // Prefer live version from GitHub; fall back to build-time constant
+  // Prefer live version from GitHub; fall back to local .boatwork-template file
   const liveVersion = await getTemplateVersion();
-  const latestVersion = liveVersion?.version || TEMPLATE_VERSION;
+  let fallbackVersion = '0.0.0';
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.boatwork-template'), 'utf8'));
+    fallbackVersion = meta.templateVersion || '0.0.0';
+  } catch { /* use default */ }
+  const latestVersion = liveVersion?.version || fallbackVersion;
 
   const upgradeType = getUpgradeType(latestVersion, currentVersion);
   const tv = parseSemver(latestVersion);
