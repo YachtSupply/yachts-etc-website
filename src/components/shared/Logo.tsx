@@ -12,7 +12,7 @@ interface LogoProps {
 export function Logo({ size = 'md', inverted = false, logoUrl, name }: LogoProps) {
   const imgSize = { sm: 36, md: 44, lg: 56 }[size];
   const textSize = { sm: 'text-lg', md: 'text-xl', lg: 'text-2xl' }[size];
-  const src = logoUrl || siteConfig.logoUrl;
+  const src = logoUrl ?? '';
   const displayName = name || siteConfig.name;
   const hasLogo = !!src;
 
