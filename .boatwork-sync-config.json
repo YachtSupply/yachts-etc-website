@@ -1,0 +1,12 @@
+{
+  "exclude": [
+    ".github/",
+    "src/site.config.ts",
+    ".boatwork-template",
+    ".boatwork-sync-config.json",
+    "orchestration/"
+  ],
+  "preserveContractorFields": {
+    ".boatwork-template": ["contractorSlug", "provisionedAt"]
+  }
+}
