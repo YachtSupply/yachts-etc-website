@@ -9,11 +9,12 @@ import { ContactForm, SectionWrapper, BoatworkBadge } from '@/components/shared'
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const apiSeo = siteConfig.apiSeo;
   return {
-    title: 'Contact',
-    description: siteConfig.seo.description || `Contact ${siteConfig.name} for premier yacht management and marine services in ${siteConfig.city}, ${siteConfig.state}.`,
+    title: apiSeo?.titles?.contact ?? 'Contact',
+    description: apiSeo?.metaDescriptions?.contact ?? siteConfig.seo.description ?? `Contact ${siteConfig.name} for premier yacht management and marine services in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
-      canonical: siteUrl ? `${siteUrl}/contact` : '/contact',
+      canonical: apiSeo?.canonicals?.contact ?? (siteUrl ? `${siteUrl}/contact` : '/contact'),
     },
   };
 }

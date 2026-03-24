@@ -44,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     ? `${BOATWORK_URL}/api/v1/public/contractors/${profileSlug}/theme.css`
     : null;
 
-  const jsonLd = {
+  const jsonLd = data.apiSeo?.jsonLd ?? {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     name: data.name,

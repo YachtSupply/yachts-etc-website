@@ -9,11 +9,12 @@ import { SectionWrapper, PortfolioGrid } from '@/components/shared';
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const apiSeo = siteConfig.apiSeo;
   return {
-    title: 'Portfolio',
-    description: siteConfig.seo.description || `See our work — ${siteConfig.name} yacht management and marine services portfolio in ${siteConfig.city}, ${siteConfig.state}.`,
+    title: apiSeo?.titles?.portfolio ?? 'Portfolio',
+    description: apiSeo?.metaDescriptions?.portfolio ?? siteConfig.seo.description ?? `See our work — ${siteConfig.name} yacht management and marine services portfolio in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
-      canonical: siteUrl ? `${siteUrl}/portfolio` : '/portfolio',
+      canonical: apiSeo?.canonicals?.portfolio ?? (siteUrl ? `${siteUrl}/portfolio` : '/portfolio'),
     },
   };
 }

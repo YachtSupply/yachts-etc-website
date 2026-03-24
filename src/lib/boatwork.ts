@@ -62,6 +62,13 @@ export interface BoatworkBadge {
   isVerified: boolean;
 }
 
+export interface BoatworkSeo {
+  titles: Record<string, string>;
+  metaDescriptions: Record<string, string>;
+  canonicals: Record<string, string>;
+  jsonLd: Record<string, unknown> | null;
+}
+
 export interface BoatworkProfile {
   name: string;
   slug: string;
@@ -70,6 +77,7 @@ export interface BoatworkProfile {
   badge: BoatworkBadge | null;
   badges: BoatworkBadge[];
   description: string | null;
+  aboutExcerpt: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
@@ -93,6 +101,7 @@ export interface BoatworkProfile {
   hoursOfOperation: Record<string, string> | null;
   websiteTheme: string | null;
   averageResponseTime: string | null;
+  seo: BoatworkSeo | null;
   social: {
     facebook: string | null;
     instagram: string | null;
@@ -216,6 +225,7 @@ export async function fetchBoatworkProfile(slug: string, profileId?: string): Pr
       slug,
       tagline: asString(raw.tagline),
       description: asString(raw.description) ?? asString(raw.about),
+      aboutExcerpt: asString(raw.aboutExcerpt),
       phone: asString(raw.phone) ?? asString(raw.telephone),
       email: asString(raw.email),
       address: asString(raw.address) ?? asString(raw.location),
@@ -332,6 +342,21 @@ export async function fetchBoatworkProfile(slug: string, profileId?: string): Pr
       })(),
       averageResponseTime: asString(raw.averageResponseTime) ?? asString(raw.avgResponseTime),
       websiteTheme: asString(raw.websiteTheme),
+      seo: (() => {
+        const seoRaw = raw.seo as Record<string, unknown> | null | undefined;
+        if (!seoRaw || typeof seoRaw !== 'object') return null;
+        const titles = seoRaw.titles as Record<string, string> | undefined;
+        const metaDescriptions = seoRaw.metaDescriptions as Record<string, string> | undefined;
+        const canonicals = seoRaw.canonicals as Record<string, string> | undefined;
+        const jsonLd = seoRaw.jsonLd as Record<string, unknown> | undefined;
+        if (!titles || !metaDescriptions || !canonicals) return null;
+        return {
+          titles,
+          metaDescriptions,
+          canonicals,
+          jsonLd: jsonLd && typeof jsonLd === 'object' ? jsonLd : null,
+        };
+      })(),
     };
 
     return profile;

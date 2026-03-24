@@ -9,3 +9,4 @@ export { SectionWrapper } from './SectionWrapper';
 export { PortfolioGrid } from './PortfolioGrid';
 export { ServiceAreaMap } from './ServiceAreaMap';
 export { BoatworkVerifiedBadge } from './BoatworkVerifiedBadge';
+export { SmartLogo } from './SmartLogo';
