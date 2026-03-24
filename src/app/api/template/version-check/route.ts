@@ -29,13 +29,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const currentVersion = searchParams.get('current') || '0.0.0';
 
-  // Prefer live version from GitHub; fall back to local .boatwork-template file
-  const liveVersion = await getTemplateVersion();
+  // Read local .boatwork-template for repo identity and fallback version
   let fallbackVersion = '0.0.0';
+  let templateRepo = 'YachtSupply/marine-pro-website-template';
   try {
     const meta = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.boatwork-template'), 'utf8'));
     fallbackVersion = meta.templateVersion || '0.0.0';
+    templateRepo = meta.templateRepo || templateRepo;
   } catch { /* use default */ }
+
+  // Prefer live version from GitHub; fall back to build-time constant
+  const liveVersion = await getTemplateVersion(templateRepo);
   const latestVersion = liveVersion?.version || fallbackVersion;
 
   const upgradeType = getUpgradeType(latestVersion, currentVersion);
