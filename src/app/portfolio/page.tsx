@@ -11,8 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
   const apiSeo = siteConfig.apiSeo;
   return {
-    title: apiSeo?.titles?.portfolio ?? 'Portfolio',
-    description: apiSeo?.metaDescriptions?.portfolio ?? siteConfig.seo.description ?? `See our work — ${siteConfig.name} yacht management and marine services portfolio in ${siteConfig.city}, ${siteConfig.state}.`,
+    title: apiSeo?.titles?.portfolio ?? `Our Work | ${siteConfig.name} — ${siteConfig.city}, ${siteConfig.state}`,
+    description: apiSeo?.metaDescriptions?.portfolio ?? `See recent work by ${siteConfig.name} — marine service projects in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
       canonical: apiSeo?.canonicals?.portfolio ?? (siteUrl ? `${siteUrl}/portfolio` : '/portfolio'),
     },

@@ -2,17 +2,36 @@ export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { GiAnchor } from 'react-icons/gi';
-import { FiPhone, FiArrowRight, FiClock } from 'react-icons/fi';
+import { FiPhone, FiArrowRight, FiClock, FiTool, FiZap, FiUsers } from 'react-icons/fi';
+import { GiShipWheel, GiWaves } from 'react-icons/gi';
 import { getSiteData } from '@/lib/siteData';
 import { formatPhone } from '@/lib/phoneUtils';
-import { ServiceCard, ReviewCard, SectionWrapper, BoatworkBadge, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo } from '@/components/shared';
+import { ReviewCard, SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo } from '@/components/shared';
+
+// Extract first sentence from a description
+function firstSentence(text: string): string {
+  const match = text.match(/^[^.!?]+[.!?]/);
+  return match ? match[0].trim() : text;
+}
+
+// Icon lookup for service summary cards
+const iconMap: Record<string, React.ReactNode> = {
+  wheel: <GiShipWheel size={22} />,
+  anchor: <GiAnchor size={22} />,
+  waves: <GiWaves size={22} />,
+  wrench: <FiTool size={22} />,
+  electric: <FiZap size={22} />,
+  engine: <FiTool size={22} />,
+  captain: <FiUsers size={22} />,
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteData = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
   const apiSeo = siteData.apiSeo;
+  const serviceNames = siteData.services.slice(0, 3).map((s) => s.name).join(', ');
   const title = apiSeo?.titles?.homepage ?? `${siteData.name} — Marine Services in ${siteData.city}, ${siteData.state}`;
-  const description = apiSeo?.metaDescriptions?.homepage ?? siteData.seo.description ?? `${siteData.name} provides expert marine services in ${siteData.city}, ${siteData.state}. Trusted by local boat owners. Get a free quote today.`;
+  const description = apiSeo?.metaDescriptions?.homepage ?? `${siteData.name} provides ${serviceNames} in ${siteData.city}, ${siteData.state}. Request a quote today.`;
   const canonical = apiSeo?.canonicals?.homepage ?? (siteUrl || '/');
   return {
     title,
@@ -22,53 +41,6 @@ export async function generateMetadata(): Promise<Metadata> {
     },
   };
 }
-
-function formatAbout(text: string) {
-  if (!text) return null;
-
-  // Split into paragraphs on double newlines; single newlines become spaces
-  const paragraphs = text
-    .split(/\n{2,}/)
-    .map((p) => p.replace(/\n/g, ' ').trim())
-    .filter(Boolean);
-
-  if (paragraphs.length <= 1) {
-    return (
-      <div className="mb-6">
-        <p className="text-text font-sans leading-relaxed">{text}</p>
-      </div>
-    );
-  }
-
-  const first = paragraphs[0];
-  const rest = paragraphs.slice(1);
-
-  // Full text always stays in DOM for SEO — max-height CSS controls visibility
-  return (
-    <div className="mb-6">
-      {/* First paragraph — always visible */}
-      <p className="text-text font-sans leading-relaxed mb-4">{first}</p>
-
-      {/* CSS accordion — remaining paragraphs in DOM, max-height toggled */}
-      <details className="group">
-        <summary className="cursor-pointer list-none text-gold font-sans text-sm font-semibold uppercase tracking-widest hover:text-gold-light transition-colors mb-3 inline-block border-b border-gold/40 pb-0.5 select-none">
-          <span className="group-open:hidden">Read more</span>
-          <span className="hidden group-open:inline">Show less</span>
-        </summary>
-        <div className="about-accordion overflow-hidden transition-[max-height] duration-300 ease-in-out">
-          {rest.map((p, i) => (
-            <p key={i} className="text-text font-sans leading-relaxed mb-4">{p}</p>
-          ))}
-        </div>
-      </details>
-      <style>{`
-        .about-accordion { display: block !important; max-height: 0; }
-        details[open] .about-accordion { max-height: 3000px; }
-      `}</style>
-    </div>
-  );
-}
-
 
 export default async function HomePage() {
   const siteConfig = await getSiteData();
@@ -83,18 +55,12 @@ export default async function HomePage() {
   const phone = formatPhone(siteConfig.phone);
   const hasPortfolio = siteConfig.portfolio.length > 0 || siteConfig.videos.length > 0;
 
-  // Strip leading business name from hero description to avoid duplication with <h1>
-  const heroDescription = (() => {
-    const raw = siteConfig.description || 'Professional marine services for boat owners in your area.';
-    const escapedName = siteConfig.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return raw.replace(new RegExp(`^${escapedName}[,\\s]+`, 'i'), '');
-  })();
-
+  // LocalBusiness JSON-LD — no reviews on homepage, include sameAs to marketplace
   const localBusinessSchema = siteConfig.apiSeo?.jsonLd ?? {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     name: siteConfig.name,
-    description: siteConfig.about,
+    description: siteConfig.description,
     url: siteUrl || undefined,
     telephone: phone?.href.replace('tel:', '') ?? siteConfig.phone,
     email: siteConfig.email,
@@ -105,31 +71,12 @@ export default async function HomePage() {
       addressCountry: 'US',
     },
     image: siteConfig.logoUrl,
-    priceRange: '$$',
-    areaServed: siteConfig.serviceArea,
     sameAs: [
+      siteConfig.boatwork.profileUrl,
       siteConfig.social.facebook,
       siteConfig.social.instagram,
-      siteConfig.boatwork.profileUrl,
     ].filter(Boolean),
-    aggregateRating: reviews.length > 0 ? {
-      '@type': 'AggregateRating',
-      ratingValue: avgRating.toFixed(1),
-      reviewCount: reviews.length,
-      bestRating: '5',
-      worstRating: '1',
-    } : undefined,
   };
-
-  const reviewSchemas = reviews.map((r) => ({
-    '@context': 'https://schema.org',
-    '@type': 'Review',
-    itemReviewed: { '@type': 'LocalBusiness', name: siteConfig.name },
-    reviewRating: { '@type': 'Rating', ratingValue: r.rating },
-    author: { '@type': 'Person', name: r.author },
-    reviewBody: r.text,
-    datePublished: r.date,
-  }));
 
   const serviceSchemas = siteConfig.services.map((s) => ({
     '@context': 'https://schema.org',
@@ -183,21 +130,9 @@ export default async function HomePage() {
           <h1 className="font-serif text-5xl md:text-7xl font-bold mb-4 leading-tight">
             {siteConfig.name}
           </h1>
-          <p className="text-gold-light font-serif text-xl md:text-2xl italic mb-4">
+          <p className="text-gold-light font-serif text-xl md:text-2xl italic mb-10">
             {siteConfig.tagline}
           </p>
-          <p className="text-slate-300 font-sans text-lg max-w-3xl mx-auto mb-4 leading-relaxed">
-            {heroDescription}
-          </p>
-          {siteConfig.aboutExcerpt && (
-            <p className="text-slate-400 font-sans text-base max-w-2xl mx-auto mb-10 leading-relaxed">
-              {siteConfig.aboutExcerpt}{' '}
-              <Link href="/about" className="text-gold hover:text-gold-light transition-colors underline underline-offset-2">
-                Learn more
-              </Link>
-            </p>
-          )}
-          {!siteConfig.aboutExcerpt && <div className="mb-6" />}
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -228,7 +163,7 @@ export default async function HomePage() {
       {/* Gold divider */}
       <div className="gold-rule-full" />
 
-      {/* Services Preview */}
+      {/* Services Preview — first sentence only */}
       <SectionWrapper variant="cream" id="services">
         <div className="text-center mb-14">
           <div className="flex items-center justify-center gap-3 mb-4">
@@ -248,8 +183,20 @@ export default async function HomePage() {
           'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
         }`}>
           {siteConfig.services.map((s) => (
-            <div key={s.name} className="bg-cream">
-              <ServiceCard {...s} />
+            <div key={s.name} className="bg-white border border-cream-dark hover:border-gold/40 p-8 group transition-all duration-300 hover:shadow-lg">
+              <div className="text-gold mb-4 group-hover:scale-110 transition-transform duration-300 inline-block">
+                {iconMap[s.icon] ?? iconMap.anchor}
+              </div>
+              <h3 className="font-serif text-lg font-semibold text-navy mb-3">{s.name}</h3>
+              <p className="text-text-light text-sm leading-relaxed font-sans mb-4">
+                {firstSentence(s.description)}
+              </p>
+              <Link
+                href="/services"
+                className="inline-flex items-center gap-1.5 text-navy font-sans font-semibold text-xs uppercase tracking-widest hover:text-gold transition-colors"
+              >
+                Learn more <FiArrowRight size={12} className="flex-shrink-0" />
+              </Link>
             </div>
           ))}
         </div>
@@ -260,73 +207,6 @@ export default async function HomePage() {
           >
             View All Services <FiArrowRight size={14} className="flex-shrink-0 inline-block" />
           </Link>
-        </div>
-      </SectionWrapper>
-
-      <div className="gold-rule-full" />
-
-      {/* About + Boatwork */}
-      <SectionWrapper variant="white" id="about">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-px w-8 bg-gold/60" />
-              <span className="text-gold text-xs font-sans font-semibold uppercase tracking-widest">About Us</span>
-            </div>
-            <h2 className="font-serif text-4xl font-bold text-navy mb-6">About Our Business</h2>
-            {siteConfig.yearEstablished && (
-              <p className="text-gold font-sans text-sm font-semibold uppercase tracking-widest mb-4">
-                Serving {siteConfig.city} since {siteConfig.yearEstablished}
-              </p>
-            )}
-            {formatAbout(siteConfig.about)}
-            <Link href="/services" className="inline-flex items-center gap-2 whitespace-nowrap text-navy font-sans font-semibold text-sm uppercase tracking-widest hover:text-gold transition-colors border-b border-gold/40 pb-1">
-              Our Services <FiArrowRight size={14} className="flex-shrink-0 inline-block" />
-            </Link>
-          </div>
-          <div className="bg-cream border border-cream-dark p-8 flex flex-col items-center text-center">
-            <div className="mb-6">
-              <SmartLogo
-                src={siteConfig.logoUrl}
-                alt={siteConfig.name}
-                size={120}
-                fallbackInitial={siteConfig.name.charAt(0)}
-                fallbackClassName="bg-navy text-white"
-              />
-            </div>
-            {reviews.length > 0 ? (
-              <>
-                <div className="flex mb-3">
-                  {[1,2,3,4,5].map((i) => (
-                    <span key={i} className={`text-xl ${i <= Math.round(avgRating) ? 'text-gold' : 'text-gray-300'}`}>★</span>
-                  ))}
-                </div>
-                <p className="font-serif text-lg text-navy mb-2">{avgRating.toFixed(1)} Star Rated on Boatwork</p>
-                <p className="text-text-light font-sans text-sm mb-6">Read verified reviews from real boat owners</p>
-              </>
-            ) : (
-              <>
-                <p className="font-serif text-lg text-navy mb-2">New on Boatwork</p>
-                <p className="text-text-light font-sans text-sm mb-6">No reviews yet — be one of the first</p>
-              </>
-            )}
-            <BoatworkVerifiedBadge
-                size="sm"
-                badgeUrl={siteConfig.badge?.badgeUrl}
-                svgUrl={siteConfig.badge?.svgUrl}
-                embedCode={siteConfig.badge?.embedCode}
-                pixelUrl={siteConfig.badge?.pixelUrl}
-                profileUrl={siteConfig.badge?.profileUrl}
-              />
-            {siteConfig.averageResponseTime && (
-              <div className="mt-4 inline-flex items-center gap-1.5 bg-cream border border-cream-dark px-3 py-1.5 rounded-full">
-                <FiClock className="text-gold flex-shrink-0" size={12} />
-                <span className="text-navy font-sans text-xs font-semibold">
-                  Responds in {siteConfig.averageResponseTime}
-                </span>
-              </div>
-            )}
-          </div>
         </div>
       </SectionWrapper>
 
@@ -473,13 +353,6 @@ export default async function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
       />
-      {reviewSchemas.map((schema, i) => (
-        <script
-          key={`review-${i}`}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-        />
-      ))}
       {serviceSchemas.map((schema, i) => (
         <script
           key={`service-${i}`}
