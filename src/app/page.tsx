@@ -1,23 +1,24 @@
 export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import { GiAnchor } from 'react-icons/gi';
 import { FiPhone, FiArrowRight, FiClock } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
 import { formatPhone } from '@/lib/phoneUtils';
-import { ServiceCard, ReviewCard, SectionWrapper, BoatworkBadge, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap } from '@/components/shared';
+import { ServiceCard, ReviewCard, SectionWrapper, BoatworkBadge, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo } from '@/components/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteData = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
-  const title = `${siteData.name} — Marine Services in ${siteData.city}, ${siteData.state}`;
-  const description = siteData.seo.description || `${siteData.name} provides expert marine services in ${siteData.city}, ${siteData.state}. Trusted by local boat owners. Get a free quote today.`;
+  const apiSeo = siteData.apiSeo;
+  const title = apiSeo?.titles?.homepage ?? `${siteData.name} — Marine Services in ${siteData.city}, ${siteData.state}`;
+  const description = apiSeo?.metaDescriptions?.homepage ?? siteData.seo.description ?? `${siteData.name} provides expert marine services in ${siteData.city}, ${siteData.state}. Trusted by local boat owners. Get a free quote today.`;
+  const canonical = apiSeo?.canonicals?.homepage ?? (siteUrl || '/');
   return {
     title,
     description,
     alternates: {
-      canonical: siteUrl || '/',
+      canonical,
     },
   };
 }
@@ -89,7 +90,7 @@ export default async function HomePage() {
     return raw.replace(new RegExp(`^${escapedName}[,\\s]+`, 'i'), '');
   })();
 
-  const localBusinessSchema = {
+  const localBusinessSchema = siteConfig.apiSeo?.jsonLd ?? {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     name: siteConfig.name,
@@ -160,24 +161,16 @@ export default async function HomePage() {
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center text-center" style={{ minHeight: '85vh' }}>
-          {siteConfig.logoUrl ? (
-            <div className="mb-8">
-              <Image
-                src={siteConfig.logoUrl}
-                alt={siteConfig.name}
-                width={120}
-                height={120}
-                className="rounded-full mx-auto border-2 border-gold/40"
-                unoptimized
-              />
-            </div>
-          ) : (
-            <div className="mb-8 flex items-center justify-center">
-              <span className="flex items-center justify-center rounded-full bg-gold text-navy font-serif font-bold border-2 border-gold/40" style={{ width: 120, height: 120, fontSize: 48 }}>
-                {siteConfig.name.charAt(0)}
-              </span>
-            </div>
-          )}
+          <div className="mb-8">
+            <SmartLogo
+              src={siteConfig.logoUrl}
+              alt={siteConfig.name}
+              size={144}
+              fallbackInitial={siteConfig.name.charAt(0)}
+              className="border-2 border-gold/40"
+              fallbackClassName="bg-gold text-navy border-2 border-gold/40"
+            />
+          </div>
 
           <div className="flex items-center gap-3 mb-6">
             <div className="h-px w-12 bg-gold/60" />
@@ -193,9 +186,18 @@ export default async function HomePage() {
           <p className="text-gold-light font-serif text-xl md:text-2xl italic mb-4">
             {siteConfig.tagline}
           </p>
-          <p className="text-slate-300 font-sans text-lg max-w-3xl mx-auto mb-10 leading-relaxed">
+          <p className="text-slate-300 font-sans text-lg max-w-3xl mx-auto mb-4 leading-relaxed">
             {heroDescription}
           </p>
+          {siteConfig.aboutExcerpt && (
+            <p className="text-slate-400 font-sans text-base max-w-2xl mx-auto mb-10 leading-relaxed">
+              {siteConfig.aboutExcerpt}{' '}
+              <Link href="/about" className="text-gold hover:text-gold-light transition-colors underline underline-offset-2">
+                Learn more
+              </Link>
+            </p>
+          )}
+          {!siteConfig.aboutExcerpt && <div className="mb-6" />}
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -284,20 +286,13 @@ export default async function HomePage() {
           </div>
           <div className="bg-cream border border-cream-dark p-8 flex flex-col items-center text-center">
             <div className="mb-6">
-              {siteConfig.logoUrl ? (
-                <Image
-                  src={siteConfig.logoUrl}
-                  alt={siteConfig.name}
-                  width={100}
-                  height={100}
-                  className="rounded-full mx-auto"
-                  unoptimized
-                />
-              ) : (
-                <span className="flex items-center justify-center rounded-full bg-navy text-white font-serif font-bold mx-auto" style={{ width: 100, height: 100, fontSize: 40 }}>
-                  {siteConfig.name.charAt(0)}
-                </span>
-              )}
+              <SmartLogo
+                src={siteConfig.logoUrl}
+                alt={siteConfig.name}
+                size={120}
+                fallbackInitial={siteConfig.name.charAt(0)}
+                fallbackClassName="bg-navy text-white"
+              />
             </div>
             {reviews.length > 0 ? (
               <>

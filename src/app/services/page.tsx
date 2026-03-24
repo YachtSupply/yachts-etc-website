@@ -10,11 +10,12 @@ import { ServiceCard, SectionWrapper, ServiceAreaMap } from '@/components/shared
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const apiSeo = siteConfig.apiSeo;
   return {
-    title: 'Services',
-    description: siteConfig.seo.description || `Premier yacht management and marine services by ${siteConfig.name} in ${siteConfig.city}, ${siteConfig.state}.`,
+    title: apiSeo?.titles?.services ?? 'Services',
+    description: apiSeo?.metaDescriptions?.services ?? siteConfig.seo.description ?? `Premier yacht management and marine services by ${siteConfig.name} in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
-      canonical: siteUrl ? `${siteUrl}/services` : '/services',
+      canonical: apiSeo?.canonicals?.services ?? (siteUrl ? `${siteUrl}/services` : '/services'),
     },
   };
 }

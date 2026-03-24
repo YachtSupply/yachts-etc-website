@@ -8,7 +8,7 @@
 
 import { cache } from 'react';
 import { siteConfig } from '@/site.config';
-import { fetchBoatworkProfile, type BoatworkProfile } from './boatwork';
+import { fetchBoatworkProfile, type BoatworkProfile, type BoatworkSeo } from './boatwork';
 import { buildFallbackContent, type GeneratedContent } from './aiContent';
 import { getProfileSlug, getProfileId, getProfileUrl, getBoatworkLogoUrl } from './config';
 import fs from 'fs';
@@ -61,6 +61,8 @@ export type SiteData = Omit<typeof siteConfig, 'hoursOfOperation' | 'services' |
   averageResponseTime: string | null;
   services: { name: string; description: string; icon: string; keywords?: string[]; benefits?: string[]; priceRange?: string | null; typicalDuration?: string | null }[];
   specialties: BoatworkProfile['specialties'];
+  apiSeo: BoatworkSeo | null;
+  aboutExcerpt: string | null;
 };
 
 // ---------- Icon mapping ----------
@@ -140,6 +142,8 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
       websiteTheme: 'navy-gold',
       averageResponseTime: null,
       specialties: [],
+      apiSeo: null,
+      aboutExcerpt: null,
     };
   }
 
@@ -315,5 +319,7 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
     websiteTheme: profile.websiteTheme ?? 'navy-gold',
     averageResponseTime: profile.averageResponseTime,
     specialties: profile.specialties,
+    apiSeo: profile.seo,
+    aboutExcerpt: profile.aboutExcerpt,
   };
 });

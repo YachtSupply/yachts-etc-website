@@ -1,20 +1,20 @@
 export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import { GiAnchor } from 'react-icons/gi';
 import { FiArrowRight, FiMapPin } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
-import { SectionWrapper, BoatworkVerifiedBadge } from '@/components/shared';
+import { SectionWrapper, BoatworkVerifiedBadge, SmartLogo } from '@/components/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const apiSeo = siteConfig.apiSeo;
   return {
-    title: 'About',
-    description: siteConfig.seo.description || `Learn about ${siteConfig.name} — trusted marine services in ${siteConfig.city}, ${siteConfig.state}.`,
+    title: apiSeo?.titles?.about ?? 'About',
+    description: apiSeo?.metaDescriptions?.about ?? siteConfig.seo.description ?? `Learn about ${siteConfig.name} — trusted marine services in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
-      canonical: siteUrl ? `${siteUrl}/about` : '/about',
+      canonical: apiSeo?.canonicals?.about ?? (siteUrl ? `${siteUrl}/about` : '/about'),
     },
   };
 }
@@ -116,20 +116,15 @@ export default async function AboutPage() {
           <div className="space-y-8">
             {/* Logo + badge panel */}
             <div className="bg-cream border border-cream-dark p-8 flex flex-col items-center text-center">
-              {siteConfig.logoUrl ? (
-                <Image
+              <div className="mb-6">
+                <SmartLogo
                   src={siteConfig.logoUrl}
                   alt={siteConfig.name}
-                  width={100}
-                  height={100}
-                  className="rounded-full mx-auto mb-6"
-                  unoptimized
+                  size={120}
+                  fallbackInitial={siteConfig.name.charAt(0)}
+                  fallbackClassName="bg-navy text-white"
                 />
-              ) : (
-                <span className="flex items-center justify-center rounded-full bg-navy text-white font-serif font-bold mx-auto mb-6" style={{ width: 100, height: 100, fontSize: 40 }}>
-                  {siteConfig.name.charAt(0)}
-                </span>
-              )}
+              </div>
               {reviews.length > 0 ? (
                 <>
                   <div className="flex mb-3">
