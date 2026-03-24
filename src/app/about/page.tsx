@@ -10,9 +10,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
   const apiSeo = siteConfig.apiSeo;
+  const primaryService = siteConfig.services[0]?.name ?? 'Marine Services';
+  const firstDesc = siteConfig.description ? siteConfig.description.match(/^[^.!?]+[.!?]/)?.[0] ?? '' : '';
   return {
-    title: apiSeo?.titles?.about ?? 'About',
-    description: apiSeo?.metaDescriptions?.about ?? siteConfig.seo.description ?? `Learn about ${siteConfig.name} — trusted marine services in ${siteConfig.city}, ${siteConfig.state}.`,
+    title: apiSeo?.titles?.about ?? `About ${siteConfig.name} — ${primaryService} in ${siteConfig.city}, ${siteConfig.state}`,
+    description: apiSeo?.metaDescriptions?.about ?? `Learn about ${siteConfig.name}, serving ${siteConfig.city} boat owners${siteConfig.yearEstablished ? ` since ${siteConfig.yearEstablished}` : ''}. ${firstDesc}`.trim(),
     alternates: {
       canonical: apiSeo?.canonicals?.about ?? (siteUrl ? `${siteUrl}/about` : '/about'),
     },
