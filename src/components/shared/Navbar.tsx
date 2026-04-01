@@ -8,7 +8,8 @@ const ALL_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/about', label: 'About' },
   { href: '/services', label: 'Services' },
-  { href: '/portfolio', label: 'Portfolio', requiresPortfolio: true },
+  { href: '/portfolio', label: 'Portfolio', requires: 'portfolio' as const },
+  { href: '/news', label: 'News', requires: 'updates' as const },
   { href: '/contact', label: 'Contact' },
 ];
 
@@ -16,11 +17,13 @@ interface NavbarProps {
   logoUrl?: string;
   name?: string;
   hasPortfolio?: boolean;
+  hasUpdates?: boolean;
   phone?: string | null;
 }
 
-export function Navbar({ logoUrl, name, hasPortfolio = false, phone }: NavbarProps) {
-  const links = ALL_LINKS.filter((l) => !l.requiresPortfolio || hasPortfolio);
+export function Navbar({ logoUrl, name, hasPortfolio = false, hasUpdates = false, phone }: NavbarProps) {
+  const flags = { portfolio: hasPortfolio, updates: hasUpdates };
+  const links = ALL_LINKS.filter((l) => !l.requires || flags[l.requires]);
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 

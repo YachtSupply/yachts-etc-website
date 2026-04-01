@@ -6,7 +6,7 @@ import { FiPhone, FiArrowRight, FiClock, FiTool, FiZap, FiUsers } from 'react-ic
 import { GiShipWheel, GiWaves } from 'react-icons/gi';
 import { getSiteData } from '@/lib/siteData';
 import { formatPhone } from '@/lib/phoneUtils';
-import { ReviewCard, SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo } from '@/components/shared';
+import { ReviewCard, SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo, UpdatesFeed } from '@/components/shared';
 
 // Extract first sentence from a description
 function firstSentence(text: string): string {
@@ -229,6 +229,39 @@ export default async function HomePage() {
                   <ReviewCard {...r} />
                 </div>
               ))}
+            </div>
+          </SectionWrapper>
+        </>
+      )}
+
+      {/* Updates — hidden if profile has no updates */}
+      {siteConfig.updates.length > 0 && (
+        <>
+          <div className="gold-rule-full" />
+          <SectionWrapper variant="white" id="updates">
+            <div className="text-center mb-14">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="h-px w-8 bg-gold/60" />
+                <GiAnchor className="text-gold" size={20} />
+                <div className="h-px w-8 bg-gold/60" />
+              </div>
+              <h2 className="font-serif text-4xl font-bold text-navy mb-4">Latest Updates</h2>
+              <p className="text-text-light font-sans max-w-2xl mx-auto leading-relaxed">
+                News and updates from {siteConfig.name}.
+              </p>
+            </div>
+            <UpdatesFeed
+              updates={siteConfig.updates}
+              businessName={siteConfig.name}
+              logoUrl={siteConfig.logoUrl || undefined}
+            />
+            <div className="text-center mt-10">
+              <Link
+                href="/news"
+                className="inline-flex items-center gap-2 text-navy font-sans font-semibold text-sm uppercase tracking-widest hover:text-gold transition-colors border-b border-gold/40 pb-1 whitespace-nowrap"
+              >
+                View All Updates <FiArrowRight size={14} className="flex-shrink-0 inline-block" />
+              </Link>
             </div>
           </SectionWrapper>
         </>

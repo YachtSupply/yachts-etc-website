@@ -68,6 +68,7 @@ export async function POST(req: Request) {
     'badge.revoked',
     'social.post.published',
     'social.subscription.updated',
+    'updates.updated',
   ]);
 
   if (syncEvents.has(event)) {
@@ -93,6 +94,7 @@ export async function GET() {
       'photo.added', 'photo.deleted', 'video.added', 'video.deleted',
       'badge.awarded', 'badge.revoked',
       'social.post.published', 'social.subscription.updated',
+      'updates.updated',
     ],
     setup: 'Register this URL in your Boatwork Business Center → Integrations → Webhook',
   });
