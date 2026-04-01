@@ -94,7 +94,7 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', '${GA_ID}');`}
         </Script>
-        <Navbar logoUrl={data.logoUrl} name={data.name} hasPortfolio={data.portfolio.length > 0 || data.videos.length > 0} phone={data.phone} />
+        <Navbar logoUrl={data.logoUrl} name={data.name} hasPortfolio={data.portfolio.length > 0 || data.videos.length > 0} hasUpdates={data.updates.length > 0} phone={data.phone} />
         <main>{children}</main>
         <Footer />
       </body>
