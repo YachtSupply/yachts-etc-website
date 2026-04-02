@@ -65,6 +65,9 @@ export interface BoatworkBadge {
 export interface BoatworkUpdate {
   id: string;
   content: string;
+  title: string | null;
+  slug: string | null;
+  isLongForm: boolean;
   linkUrl: string | null;
   linkTitle: string | null;
   linkDescription: string | null;
@@ -206,6 +209,9 @@ function normalizeUpdate(raw: Record<string, unknown>): BoatworkUpdate | null {
   return {
     id,
     content,
+    title: asString(raw.title),
+    slug: asString(raw.slug),
+    isLongForm: raw.isLongForm === true,
     linkUrl: asString(raw.linkUrl),
     linkTitle: asString(raw.linkTitle),
     linkDescription: asString(raw.linkDescription),
