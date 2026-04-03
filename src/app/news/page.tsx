@@ -78,6 +78,63 @@ function UpdatePost({ update, businessName, logoUrl }: { update: BoatworkUpdate;
   const hasLinkPreview = update.linkUrl && update.linkTitle;
   const hasImage = update.imageUrl && !hasLinkPreview;
 
+  if (update.isLongForm) {
+    const truncated = update.content.length > 500
+      ? update.content.slice(0, 500) + '...'
+      : update.content;
+
+    return (
+      <article className="bg-white border border-cream-dark p-8 flex flex-col gap-5">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={businessName}
+              className="w-12 h-12 rounded-full object-cover border border-cream-dark flex-shrink-0"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-base flex-shrink-0">
+              {businessName.charAt(0)}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="font-serif font-semibold text-navy truncate">{businessName}</p>
+            <p className="text-text-light text-sm font-sans">{formatRelativeTime(update.publishedAt)}</p>
+          </div>
+          {update.isPinned && (
+            <span className="inline-flex items-center gap-1 text-xs font-sans font-semibold text-gold bg-gold/10 px-2.5 py-1 rounded-full flex-shrink-0">
+              <FiMapPin size={10} />
+              Pinned
+            </span>
+          )}
+        </div>
+
+        {/* Long-form title */}
+        {update.title && (
+          <h2 className="font-serif text-2xl font-bold text-navy leading-snug">
+            {update.title}
+          </h2>
+        )}
+
+        {/* Truncated content */}
+        <div className="text-text font-sans leading-relaxed whitespace-pre-line">
+          {linkifyContent(truncated)}
+        </div>
+
+        {/* Read more link */}
+        {update.slug && (
+          <Link
+            href={`/news/${update.slug}`}
+            className="self-start text-navy font-sans font-semibold text-sm underline decoration-gold/40 hover:decoration-gold transition-colors"
+          >
+            Read more →
+          </Link>
+        )}
+      </article>
+    );
+  }
+
   return (
     <article className="bg-white border border-cream-dark p-8 flex flex-col gap-5">
       {/* Header */}
