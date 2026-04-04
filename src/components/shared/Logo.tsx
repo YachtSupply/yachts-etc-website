@@ -20,17 +20,23 @@ export function Logo({ size = 'md', inverted = false, logoUrl, name }: LogoProps
   const hasLogo = !!src;
 
   const [shape, setShape] = useState<'circle' | 'rounded' | 'loading'>('loading');
+  const [error, setError] = useState(false);
+
   const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     const ratio = img.naturalWidth / img.naturalHeight;
     setShape(ratio >= 0.75 && ratio <= 1.33 ? 'circle' : 'rounded');
   }, []);
 
+  const handleError = useCallback(() => {
+    setError(true);
+  }, []);
+
   const isCircle = shape === 'circle' || shape === 'loading';
 
   return (
     <Link href="/" className="flex items-center gap-3 group">
-      {hasLogo ? (
+      {hasLogo && !error ? (
         <Image
           src={src}
           alt={displayName}
@@ -39,6 +45,7 @@ export function Logo({ size = 'md', inverted = false, logoUrl, name }: LogoProps
           className={`flex-shrink-0 ${isCircle ? 'rounded-full object-cover' : 'rounded-[8px] object-contain'}`}
           unoptimized
           onLoad={handleLoad}
+          onError={handleError}
         />
       ) : (
         <span
