@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { GiAnchor } from 'react-icons/gi';
 import { FiMapPin } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
-import { SectionWrapper } from '@/components/shared';
+import { SectionWrapper, SafeHtmlImage } from '@/components/shared';
 import type { BoatworkUpdate } from '@/lib/boatwork';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -88,10 +88,16 @@ function UpdatePost({ update, businessName, logoUrl }: { update: BoatworkUpdate;
         {/* Header */}
         <div className="flex items-center gap-3">
           {logoUrl ? (
-            <img
+            <SafeHtmlImage
               src={logoUrl}
               alt={businessName}
               className="w-12 h-12 rounded-full object-cover border border-cream-dark flex-shrink-0"
+              placeholderContent={
+                <div className="w-12 h-12 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-base flex-shrink-0">
+                  {businessName.charAt(0)}
+                </div>
+              }
+              showPlaceholder
             />
           ) : (
             <div className="w-12 h-12 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-base flex-shrink-0">
@@ -140,10 +146,16 @@ function UpdatePost({ update, businessName, logoUrl }: { update: BoatworkUpdate;
       {/* Header */}
       <div className="flex items-center gap-3">
         {logoUrl ? (
-          <img
+          <SafeHtmlImage
             src={logoUrl}
             alt={businessName}
             className="w-12 h-12 rounded-full object-cover border border-cream-dark flex-shrink-0"
+            placeholderContent={
+              <div className="w-12 h-12 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-base flex-shrink-0">
+                {businessName.charAt(0)}
+              </div>
+            }
+            showPlaceholder
           />
         ) : (
           <div className="w-12 h-12 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-base flex-shrink-0">

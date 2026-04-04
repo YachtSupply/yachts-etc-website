@@ -1,5 +1,6 @@
 import type { BoatworkUpdate } from '@/lib/boatwork';
 import { FiMapPin } from 'react-icons/fi';
+import { SafeHtmlImage } from './SafeImage';
 
 /**
  * Format a URL-like string found in plain text into a clickable link.
@@ -80,10 +81,16 @@ export function UpdateCard({ update, businessName, logoUrl }: UpdateCardProps) {
       {/* Header: logo/name + timestamp + pinned badge */}
       <div className="flex items-center gap-3">
         {logoUrl ? (
-          <img
+          <SafeHtmlImage
             src={logoUrl}
             alt={businessName}
             className="w-10 h-10 rounded-full object-cover border border-cream-dark flex-shrink-0"
+            placeholderContent={
+              <div className="w-10 h-10 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-sm flex-shrink-0">
+                {businessName.charAt(0)}
+              </div>
+            }
+            showPlaceholder
           />
         ) : (
           <div className="w-10 h-10 rounded-full bg-gold text-navy flex items-center justify-center font-serif font-bold text-sm flex-shrink-0">
@@ -117,7 +124,7 @@ export function UpdateCard({ update, businessName, logoUrl }: UpdateCardProps) {
         >
           {update.linkImage && (
             <div className="relative w-full h-40 bg-cream">
-              <img
+              <SafeHtmlImage
                 src={update.linkImage}
                 alt={update.linkTitle ?? ''}
                 className="w-full h-full object-cover"
@@ -141,7 +148,7 @@ export function UpdateCard({ update, businessName, logoUrl }: UpdateCardProps) {
       {/* Standalone image (only when no link preview) */}
       {hasImage && (
         <div className="rounded-lg overflow-hidden max-h-80">
-          <img
+          <SafeHtmlImage
             src={update.imageUrl!}
             alt={update.imageAlt ?? ''}
             className="w-full h-full object-cover rounded-lg"
