@@ -35,6 +35,7 @@ function getVideoMimeType(src: string): string {
 
 function VideoThumbnail({ src, poster, alt }: { src: string; poster?: string; alt: string }) {
   const [thumb, setThumb] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
   const attempted = useRef(false);
 
   useEffect(() => {
@@ -74,7 +75,7 @@ function VideoThumbnail({ src, poster, alt }: { src: string; poster?: string; al
     };
   }, [src, poster]);
 
-  const imgSrc = poster || thumb;
+  const imgSrc = !imgError && (poster || thumb);
 
   if (imgSrc) {
     return (
@@ -85,6 +86,7 @@ function VideoThumbnail({ src, poster, alt }: { src: string; poster?: string; al
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
         className="object-cover group-hover:scale-105 transition-transform duration-500"
         unoptimized
+        onError={() => setImgError(true)}
       />
     );
   }
@@ -97,13 +99,20 @@ function VideoThumbnail({ src, poster, alt }: { src: string; poster?: string; al
 
 export function PortfolioGrid({ items, videos = [], businessName }: PortfolioGridProps) {
   const [index, setIndex] = useState(-1);
+  const [failedSrcs, setFailedSrcs] = useState<Set<string>>(new Set());
 
-  const imageSlides = items.map((item) => ({
+  const markFailed = (src: string) =>
+    setFailedSrcs((prev) => new Set(prev).add(src));
+
+  const visibleItems = items.filter((item) => !failedSrcs.has(item.src));
+  const visibleVideos = videos.filter((v) => !failedSrcs.has(v.src));
+
+  const imageSlides = visibleItems.map((item) => ({
     src: item.src,
     title: item.caption,
   }));
 
-  const videoSlides = videos.map((v) => ({
+  const videoSlides = visibleVideos.map((v) => ({
     type: 'video' as const,
     poster: v.poster || undefined,
     title: v.caption || undefined,
@@ -117,9 +126,9 @@ export function PortfolioGrid({ items, videos = [], businessName }: PortfolioGri
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-        {items.map((item, i) => (
+        {visibleItems.map((item, i) => (
           <button
-            key={i}
+            key={item.src}
             onClick={() => setIndex(i)}
             className="relative aspect-[4/3] overflow-hidden group cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold"
           >
@@ -130,6 +139,7 @@ export function PortfolioGrid({ items, videos = [], businessName }: PortfolioGri
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               className="object-cover group-hover:scale-105 transition-transform duration-500"
               unoptimized
+              onError={() => markFailed(item.src)}
             />
             <div className="absolute inset-0 bg-navy/0 group-hover:bg-navy/50 transition-all duration-300 flex items-end">
               <p className="text-white font-sans text-sm font-medium px-4 py-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
@@ -141,10 +151,10 @@ export function PortfolioGrid({ items, videos = [], businessName }: PortfolioGri
             </div>
           </button>
         ))}
-        {videos.map((v, i) => (
+        {visibleVideos.map((v, i) => (
           <button
-            key={`video-${i}`}
-            onClick={() => setIndex(items.length + i)}
+            key={`video-${v.src}`}
+            onClick={() => setIndex(visibleItems.length + i)}
             className="relative aspect-[4/3] overflow-hidden group cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold"
           >
             <VideoThumbnail

@@ -229,182 +229,222 @@ function safeArray<T>(arr: unknown, mapper: (item: Record<string, unknown>) => T
   return arr.map((item) => mapper(item as Record<string, unknown>)).filter(Boolean) as T[];
 }
 
+// ---------- Retry helpers ----------
+
+const TRANSIENT_STATUS_CODES = new Set([502, 503, 504]);
+const RETRY_BACKOFF_MS = [1000, 2000, 4000];
+
+function isTransientFetchError(err: unknown): boolean {
+  if (err instanceof TypeError) return true; // network errors
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes('socket') || msg.includes('econnreset') || msg.includes('enotfound')) return true;
+  }
+  return false;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // ---------- Main fetch ----------
 
 export async function fetchBoatworkProfile(slug: string, profileId?: string): Promise<BoatworkProfile | null> {
-  try {
-    const url = profileId
-      ? `${BOATWORK_API}/public/contractors/by-id/${profileId}`
-      : `${BOATWORK_API}/public/contractors/${slug}`;
+  const url = profileId
+    ? `${BOATWORK_API}/public/contractors/by-id/${profileId}`
+    : `${BOATWORK_API}/public/contractors/${slug}`;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const MAX_ATTEMPTS = 3;
 
-    const res = await fetch(url, {
-      next: { revalidate: 60 },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      const identifier = profileId ? `id "${profileId}"` : `slug "${slug}"`;
-      console.warn(`[boatwork] API returned ${res.status} for ${identifier}`);
-      return null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const delay = RETRY_BACKOFF_MS[attempt - 1];
+      console.warn(`[boatwork] Retry attempt ${attempt}/${MAX_ATTEMPTS - 1} for slug "${slug}" after ${delay}ms`);
+      await sleep(delay);
     }
 
-    const json = await res.json();
-    // The API may wrap the profile in a `data` key or return it at the top level.
-    const raw = (json?.data ?? json) as Record<string, unknown>;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    if (!raw || typeof raw !== 'object') return null;
+      const res = await fetch(url, {
+        next: { revalidate: 60 },
+        signal: controller.signal,
+      });
 
-    const reviews = safeArray(raw.reviews, normalizeReview);
-    const updates = safeArray(raw.updates, normalizeUpdate);
+      clearTimeout(timeoutId);
 
-    const profile: BoatworkProfile = {
-      name: asString(raw.name) ?? asString(raw.businessName) ?? slug,
-      slug,
-      tagline: asString(raw.tagline),
-      description: asString(raw.description) ?? asString(raw.about),
-      aboutExcerpt: asString(raw.aboutExcerpt),
-      phone: asString(raw.phone) ?? asString(raw.telephone),
-      email: asString(raw.email),
-      address: asString(raw.address) ?? asString(raw.location),
-      city: asString(raw.city),
-      state: asString(raw.state),
-      logoUrl: asString(raw.logoUrl) ?? asString(raw.logo),
-      coverImageUrl: asString(raw.coverImageUrl) ?? asString(raw.coverImage),
-      isVerified: raw.isVerified === true || raw.verified === true,
-      rating: asNumber(raw.rating) ?? asNumber(raw.averageRating),
-      reviewCount: (asNumber(raw.reviewCount) ?? reviews.length) as number,
-      reviews,
-      services: safeArray(raw.services, normalizeService),
-      photos: safeArray(raw.photos ?? raw.portfolio ?? raw.images ?? raw.gallery ?? raw.mediaItems, normalizePhoto),
-      videos: safeArray(raw.videos, normalizeVideo),
-      specialties: Array.isArray(raw.specialties)
-        ? (raw.specialties as unknown[]).flatMap((s) => {
-            if (typeof s === 'object' && s !== null) {
-              const o = s as Record<string, unknown>;
-              const name = asString(o.name);
-              if (!name) return [];
-              const faqsRaw = o.faqs;
-              const faqs: Array<{ question: string; answer: string }> = [];
-              if (Array.isArray(faqsRaw)) {
-                for (const f of faqsRaw) {
-                  if (typeof f === 'object' && f !== null) {
-                    const fObj = f as Record<string, unknown>;
-                    const q = asString(fObj.question) ?? asString(fObj.q);
-                    const a = asString(fObj.answer) ?? asString(fObj.a);
-                    if (q && a) faqs.push({ question: q, answer: a });
-                  }
-                }
-              } else if (typeof faqsRaw === 'string') {
-                try {
-                  const parsed = JSON.parse(faqsRaw);
-                  if (Array.isArray(parsed)) {
-                    for (const f of parsed) {
-                      if (f?.question && f?.answer) faqs.push({ question: f.question, answer: f.answer });
+      if (!res.ok) {
+        if (TRANSIENT_STATUS_CODES.has(res.status) && attempt < MAX_ATTEMPTS - 1) {
+          console.warn(`[boatwork] Transient HTTP ${res.status} for slug "${slug}", will retry`);
+          continue;
+        }
+        const identifier = profileId ? `id "${profileId}"` : `slug "${slug}"`;
+        console.warn(`[boatwork] API returned ${res.status} for ${identifier}`);
+        return null;
+      }
+
+      const json = await res.json();
+      // The API may wrap the profile in a `data` key or return it at the top level.
+      const raw = (json?.data ?? json) as Record<string, unknown>;
+
+      if (!raw || typeof raw !== 'object') return null;
+
+      const reviews = safeArray(raw.reviews, normalizeReview);
+      const updates = safeArray(raw.updates, normalizeUpdate);
+
+      const profile: BoatworkProfile = {
+        name: asString(raw.name) ?? asString(raw.businessName) ?? slug,
+        slug,
+        tagline: asString(raw.tagline),
+        description: asString(raw.description) ?? asString(raw.about),
+        aboutExcerpt: asString(raw.aboutExcerpt),
+        phone: asString(raw.phone) ?? asString(raw.telephone),
+        email: asString(raw.email),
+        address: asString(raw.address) ?? asString(raw.location),
+        city: asString(raw.city),
+        state: asString(raw.state),
+        logoUrl: asString(raw.logoUrl) ?? asString(raw.logo),
+        coverImageUrl: asString(raw.coverImageUrl) ?? asString(raw.coverImage),
+        isVerified: raw.isVerified === true || raw.verified === true,
+        rating: asNumber(raw.rating) ?? asNumber(raw.averageRating),
+        reviewCount: (asNumber(raw.reviewCount) ?? reviews.length) as number,
+        reviews,
+        services: safeArray(raw.services, normalizeService),
+        photos: safeArray(raw.photos ?? raw.portfolio ?? raw.images ?? raw.gallery ?? raw.mediaItems, normalizePhoto),
+        videos: safeArray(raw.videos, normalizeVideo),
+        specialties: Array.isArray(raw.specialties)
+          ? (raw.specialties as unknown[]).flatMap((s) => {
+              if (typeof s === 'object' && s !== null) {
+                const o = s as Record<string, unknown>;
+                const name = asString(o.name);
+                if (!name) return [];
+                const faqsRaw = o.faqs;
+                const faqs: Array<{ question: string; answer: string }> = [];
+                if (Array.isArray(faqsRaw)) {
+                  for (const f of faqsRaw) {
+                    if (typeof f === 'object' && f !== null) {
+                      const fObj = f as Record<string, unknown>;
+                      const q = asString(fObj.question) ?? asString(fObj.q);
+                      const a = asString(fObj.answer) ?? asString(fObj.a);
+                      if (q && a) faqs.push({ question: q, answer: a });
                     }
                   }
-                } catch { /* ignore */ }
+                } else if (typeof faqsRaw === 'string') {
+                  try {
+                    const parsed = JSON.parse(faqsRaw);
+                    if (Array.isArray(parsed)) {
+                      for (const f of parsed) {
+                        if (f?.question && f?.answer) faqs.push({ question: f.question, answer: f.answer });
+                      }
+                    }
+                  } catch { /* ignore */ }
+                }
+                return [{
+                  id: asString(o.id) ?? '',
+                  name,
+                  slug: asString(o.slug) ?? '',
+                  shortDescription: asString(o.shortDescription),
+                  longDescription: asString(o.longDescription),
+                  benefits: Array.isArray(o.benefits)
+                    ? (o.benefits as unknown[]).filter((b): b is string => typeof b === 'string')
+                    : [],
+                  priceRange: asString(o.priceRange),
+                  typicalDuration: asString(o.typicalDuration),
+                  faqs,
+                }];
               }
-              return [{
-                id: asString(o.id) ?? '',
-                name,
-                slug: asString(o.slug) ?? '',
-                shortDescription: asString(o.shortDescription),
-                longDescription: asString(o.longDescription),
-                benefits: Array.isArray(o.benefits)
-                  ? (o.benefits as unknown[]).filter((b): b is string => typeof b === 'string')
-                  : [],
-                priceRange: asString(o.priceRange),
-                typicalDuration: asString(o.typicalDuration),
-                faqs,
-              }];
-            }
-            return [];
-          })
-        : [],
-      yearEstablished: asNumber(raw.yearEstablished) ?? asNumber(raw.year_established),
-      serviceAreaRadius: asNumber(raw.serviceAreaRadius) ?? asNumber(raw.service_area_radius),
-      serviceArea: (() => {
-        if (Array.isArray(raw.serviceArea) && (raw.serviceArea as unknown[]).length > 0) {
-          return (raw.serviceArea as unknown[]).filter((s): s is string => typeof s === 'string');
-        }
-        // API does not return serviceArea — generate a fallback from city/state
-        const city = asString(raw.city);
-        const state = asString(raw.state);
-        if (city && state) return [`${city} area`, `${city}, ${state}`];
-        if (city) return [`${city} area`];
-        return [];
-      })(),
-      profileUrl: asString(raw.profileUrl) ?? `https://boatwork.co/pro/${slug}/`,
-      updates,
-      updatedAt: asString(raw.updatedAt) ?? new Date().toISOString(),
-      social: {
-        facebook: asString((raw.social as Record<string, unknown>)?.facebook) ?? asString(raw.facebookUrl) ?? null,
-        instagram: asString((raw.social as Record<string, unknown>)?.instagram) ?? asString(raw.instagramUrl) ?? null,
-        linkedin: asString((raw.social as Record<string, unknown>)?.linkedin) ?? asString(raw.linkedinUrl) ?? null,
-        youtube: asString((raw.social as Record<string, unknown>)?.youtube) ?? asString(raw.youtubeUrl) ?? null,
-      },
-      badges: (() => {
-        // Support both `badges` array (ContractorBadge[]) and legacy single `badge` object
-        const badgesArr = raw.badges ?? raw.contractorBadges;
-        if (Array.isArray(badgesArr)) {
-          return badgesArr
-            .map((b) => (typeof b === 'object' && b !== null ? normalizeBadge(b as Record<string, unknown>, slug) : null))
-            .filter((b): b is BoatworkBadge => b !== null);
-        }
-        const single = raw.badge as Record<string, unknown> | null | undefined;
-        if (single && typeof single === 'object') {
-          const b = normalizeBadge(single, slug);
-          return b ? [b] : [];
-        }
-        return [];
-      })(),
-      badge: (() => {
-        // Legacy single badge — first from badges array, or direct badge object
-        const badgesArr = raw.badges ?? raw.contractorBadges;
-        if (Array.isArray(badgesArr) && badgesArr.length > 0) {
-          const first = badgesArr[0];
-          if (typeof first === 'object' && first !== null) return normalizeBadge(first as Record<string, unknown>, slug);
-        }
-        const b = raw.badge as Record<string, unknown> | null | undefined;
-        if (!b || typeof b !== 'object') return null;
-        return normalizeBadge(b, slug);
-      })(),
-      hoursOfOperation: (() => {
-        const h = raw.hoursOfOperation;
-        if (!h) return null;
-        if (typeof h === 'object') return h as Record<string, string>;
-        if (typeof h === 'string') {
-          try { return JSON.parse(h) as Record<string, string>; } catch { return null; }
-        }
-        return null;
-      })(),
-      averageResponseTime: asString(raw.averageResponseTime) ?? asString(raw.avgResponseTime),
-      websiteTheme: asString(raw.websiteTheme),
-      seo: (() => {
-        const seoRaw = raw.seo as Record<string, unknown> | null | undefined;
-        if (!seoRaw || typeof seoRaw !== 'object') return null;
-        const titles = seoRaw.titles as Record<string, string> | undefined;
-        const metaDescriptions = seoRaw.metaDescriptions as Record<string, string> | undefined;
-        const canonicals = seoRaw.canonicals as Record<string, string> | undefined;
-        const jsonLd = seoRaw.jsonLd as Record<string, unknown> | undefined;
-        if (!titles || !metaDescriptions || !canonicals) return null;
-        return {
-          titles,
-          metaDescriptions,
-          canonicals,
-          jsonLd: jsonLd && typeof jsonLd === 'object' ? jsonLd : null,
-        };
-      })(),
-    };
+              return [];
+            })
+          : [],
+        yearEstablished: asNumber(raw.yearEstablished) ?? asNumber(raw.year_established),
+        serviceAreaRadius: asNumber(raw.serviceAreaRadius) ?? asNumber(raw.service_area_radius),
+        serviceArea: (() => {
+          if (Array.isArray(raw.serviceArea) && (raw.serviceArea as unknown[]).length > 0) {
+            return (raw.serviceArea as unknown[]).filter((s): s is string => typeof s === 'string');
+          }
+          // API does not return serviceArea — generate a fallback from city/state
+          const city = asString(raw.city);
+          const state = asString(raw.state);
+          if (city && state) return [`${city} area`, `${city}, ${state}`];
+          if (city) return [`${city} area`];
+          return [];
+        })(),
+        profileUrl: asString(raw.profileUrl) ?? `https://boatwork.co/pro/${slug}/`,
+        updates,
+        updatedAt: asString(raw.updatedAt) ?? new Date().toISOString(),
+        social: {
+          facebook: asString((raw.social as Record<string, unknown>)?.facebook) ?? asString(raw.facebookUrl) ?? null,
+          instagram: asString((raw.social as Record<string, unknown>)?.instagram) ?? asString(raw.instagramUrl) ?? null,
+          linkedin: asString((raw.social as Record<string, unknown>)?.linkedin) ?? asString(raw.linkedinUrl) ?? null,
+          youtube: asString((raw.social as Record<string, unknown>)?.youtube) ?? asString(raw.youtubeUrl) ?? null,
+        },
+        badges: (() => {
+          // Support both `badges` array (ContractorBadge[]) and legacy single `badge` object
+          const badgesArr = raw.badges ?? raw.contractorBadges;
+          if (Array.isArray(badgesArr)) {
+            return badgesArr
+              .map((b) => (typeof b === 'object' && b !== null ? normalizeBadge(b as Record<string, unknown>, slug) : null))
+              .filter((b): b is BoatworkBadge => b !== null);
+          }
+          const single = raw.badge as Record<string, unknown> | null | undefined;
+          if (single && typeof single === 'object') {
+            const b = normalizeBadge(single, slug);
+            return b ? [b] : [];
+          }
+          return [];
+        })(),
+        badge: (() => {
+          // Legacy single badge — first from badges array, or direct badge object
+          const badgesArr = raw.badges ?? raw.contractorBadges;
+          if (Array.isArray(badgesArr) && badgesArr.length > 0) {
+            const first = badgesArr[0];
+            if (typeof first === 'object' && first !== null) return normalizeBadge(first as Record<string, unknown>, slug);
+          }
+          const b = raw.badge as Record<string, unknown> | null | undefined;
+          if (!b || typeof b !== 'object') return null;
+          return normalizeBadge(b, slug);
+        })(),
+        hoursOfOperation: (() => {
+          const h = raw.hoursOfOperation;
+          if (!h) return null;
+          if (typeof h === 'object') return h as Record<string, string>;
+          if (typeof h === 'string') {
+            try { return JSON.parse(h) as Record<string, string>; } catch { return null; }
+          }
+          return null;
+        })(),
+        averageResponseTime: asString(raw.averageResponseTime) ?? asString(raw.avgResponseTime),
+        websiteTheme: asString(raw.websiteTheme),
+        seo: (() => {
+          const seoRaw = raw.seo as Record<string, unknown> | null | undefined;
+          if (!seoRaw || typeof seoRaw !== 'object') return null;
+          const titles = seoRaw.titles as Record<string, string> | undefined;
+          const metaDescriptions = seoRaw.metaDescriptions as Record<string, string> | undefined;
+          const canonicals = seoRaw.canonicals as Record<string, string> | undefined;
+          const jsonLd = seoRaw.jsonLd as Record<string, unknown> | undefined;
+          if (!titles || !metaDescriptions || !canonicals) return null;
+          return {
+            titles,
+            metaDescriptions,
+            canonicals,
+            jsonLd: jsonLd && typeof jsonLd === 'object' ? jsonLd : null,
+          };
+        })(),
+      };
 
-    return profile;
-  } catch (err) {
-    console.error('[boatwork] Failed to fetch profile:', err);
-    return null;
+      return profile;
+    } catch (err) {
+      if (isTransientFetchError(err) && attempt < MAX_ATTEMPTS - 1) {
+        console.warn(`[boatwork] Transient error for slug "${slug}" (attempt ${attempt + 1}):`, err instanceof Error ? err.message : err);
+        continue;
+      }
+      console.error('[boatwork] Failed to fetch profile:', err);
+      return null;
+    }
   }
+
+  // All attempts exhausted
+  console.error(`[boatwork] All ${MAX_ATTEMPTS} attempts exhausted for slug "${slug}"`);
+  return null;
 }

@@ -34,9 +34,19 @@ export async function POST(req: Request) {
     const slug = getProfileSlug();
 
     // Fetch contractor profile from Boatwork public API
-    const profile = await fetchBoatworkProfile(slug);
+    // fetchBoatworkProfile already retries internally on transient errors.
+    // Add one final retry here at the route level after a longer pause, in case
+    // the internal retries all hit a brief Cloudflare edge outage.
+    let profile = await fetchBoatworkProfile(slug);
 
     if (!profile) {
+      console.warn('[boatwork/sync] Initial fetch returned null for slug:', slug, '— retrying in 3s');
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      profile = await fetchBoatworkProfile(slug);
+    }
+
+    if (!profile) {
+      console.error('[boatwork/sync] Profile fetch failed after route-level retry for slug:', slug);
       return NextResponse.json(
         { error: 'Failed to fetch profile from Boatwork API' },
         { status: 502 }
