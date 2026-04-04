@@ -13,6 +13,7 @@ interface SmartLogoProps {
 
 export function SmartLogo({ src, alt, size, fallbackInitial, className = '', fallbackClassName = '' }: SmartLogoProps) {
   const [shape, setShape] = useState<'circle' | 'rounded' | 'loading'>('loading');
+  const [failed, setFailed] = useState(false);
 
   const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -20,7 +21,7 @@ export function SmartLogo({ src, alt, size, fallbackInitial, className = '', fal
     setShape(ratio >= 0.75 && ratio <= 1.33 ? 'circle' : 'rounded');
   }, []);
 
-  if (!src) {
+  if (!src || failed) {
     return (
       <span
         className={`flex items-center justify-center rounded-full font-serif font-bold ${fallbackClassName}`}
@@ -43,6 +44,7 @@ export function SmartLogo({ src, alt, size, fallbackInitial, className = '', fal
       style={!isCircle ? { width: size, height: size } : undefined}
       unoptimized
       onLoad={handleLoad}
+      onError={() => setFailed(true)}
     />
   );
 }

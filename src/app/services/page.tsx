@@ -1,11 +1,10 @@
 export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import { GiAnchor } from 'react-icons/gi';
 import { FiArrowRight, FiCheckCircle, FiAnchor } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
-import { ServiceCard, SectionWrapper, ServiceAreaMap } from '@/components/shared';
+import { ServiceCard, SectionWrapper, ServiceAreaMap, SafeImage } from '@/components/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
@@ -122,15 +121,15 @@ export default async function ServicesPage() {
             {siteConfig.portfolio.length > 0 && (
               <div className="grid grid-cols-2 gap-2 mb-6 -mx-2">
                 {siteConfig.portfolio.slice(0, 2).map((photo, i) => (
-                  <div key={i} className="relative aspect-[4/3] overflow-hidden">
-                    <Image
-                      src={photo.src}
-                      alt={photo.caption || `Work by ${siteConfig.name}`}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  </div>
+                  <SafeImage
+                    key={i}
+                    src={photo.src}
+                    alt={photo.caption || `Work by ${siteConfig.name}`}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                    containerClassName="relative aspect-[4/3] overflow-hidden"
+                  />
                 ))}
               </div>
             )}

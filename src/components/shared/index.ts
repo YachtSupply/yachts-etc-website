@@ -12,3 +12,4 @@ export { BoatworkVerifiedBadge } from './BoatworkVerifiedBadge';
 export { SmartLogo } from './SmartLogo';
 export { UpdateCard } from './UpdateCard';
 export { UpdatesFeed } from './UpdatesFeed';
+export { SafeImage } from './SafeImage';
