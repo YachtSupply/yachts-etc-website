@@ -6,7 +6,7 @@ import { FiPhone, FiArrowRight, FiClock, FiTool, FiZap, FiUsers } from 'react-ic
 import { GiShipWheel, GiWaves } from 'react-icons/gi';
 import { getSiteData } from '@/lib/siteData';
 import { formatPhone } from '@/lib/phoneUtils';
-import { ReviewCard, SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo, UpdatesFeed } from '@/components/shared';
+import { ReviewCard, ReviewSynopsis, SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo, UpdatesFeed } from '@/components/shared';
 
 // Extract first sentence from a description
 function firstSentence(text: string): string {
@@ -210,8 +210,8 @@ export default async function HomePage() {
         </div>
       </SectionWrapper>
 
-      {/* Reviews — hidden if profile has no reviews */}
-      {reviews.length > 0 && (
+      {/* Reviews — show if synopsis exists OR individual reviews exist */}
+      {(siteConfig.reviewSynopsis || reviews.length > 0) && (
         <>
           <div className="gold-rule-full" />
           <SectionWrapper variant="cream" id="reviews">
@@ -223,13 +223,28 @@ export default async function HomePage() {
               </div>
               <h2 className="font-serif text-4xl font-bold text-navy mb-4">What Our Clients Say</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-cream-dark">
-              {siteConfig.boatwork.staticReviews.map((r, i) => (
-                <div key={r.id ?? `${r.author}-${i}`} className="bg-cream">
-                  <ReviewCard {...r} />
-                </div>
-              ))}
-            </div>
+
+            {/* Review Synopsis (if available) */}
+            {siteConfig.reviewSynopsis && (
+              <ReviewSynopsis
+                businessName={siteConfig.name}
+                aggregateRating={siteConfig.reviewSynopsis.aggregateRating}
+                totalReviewCount={siteConfig.reviewSynopsis.totalReviewCount}
+                summary={siteConfig.reviewSynopsis.summary}
+                keywords={siteConfig.reviewSynopsis.keywords}
+              />
+            )}
+
+            {/* Individual review cards */}
+            {reviews.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-cream-dark">
+                {siteConfig.boatwork.staticReviews.map((r, i) => (
+                  <div key={r.id ?? `${r.author}-${i}`} className="bg-cream">
+                    <ReviewCard {...r} />
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionWrapper>
         </>
       )}
