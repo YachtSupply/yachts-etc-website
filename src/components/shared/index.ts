@@ -3,6 +3,7 @@ export { Navbar } from './Navbar';
 export { Footer } from './Footer';
 export { ServiceCard } from './ServiceCard';
 export { ReviewCard } from './ReviewCard';
+export { ReviewSynopsis } from './ReviewSynopsis';
 export { ContactForm } from './ContactForm';
 export { BoatworkBadge } from './BoatworkBadge';
 export { SectionWrapper } from './SectionWrapper';

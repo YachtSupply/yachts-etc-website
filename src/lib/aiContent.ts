@@ -14,6 +14,16 @@ import type { BoatworkProfile } from './boatwork';
 
 // ---------- Public types ----------
 
+export interface ReviewSynopsisData {
+  aggregateRating: number;        // 1-5 scale, one decimal
+  totalReviewCount: number;       // Sum of all sources
+  boatworkReviewCount: number;
+  googleReviewCount: number;
+  summary: string;                // AI-generated 2-3 sentences
+  keywords: string[];             // 5-8 service/quality tags
+  sources: ('boatwork' | 'google')[];
+}
+
 export interface GeneratedContent {
   tagline: string;               // Only used as fallback if profile.tagline is null
   about: string;                 // Enriched about text — voice-preserving + SEO
@@ -26,6 +36,7 @@ export interface GeneratedContent {
   serviceAreaLocalities: string[];  // AI-generated locality names within service radius
   serviceAreaTitle?: string;     // Dynamic section title based on business type
   serviceKeywords: Record<string, string[]>;  // Per-service bullet keywords
+  reviewSynopsis?: ReviewSynopsisData;  // AI-synthesized review summary (optional - only if reviews exist)
 }
 
 interface CachedContent {
