@@ -42,6 +42,27 @@
       "Hollywood",
       "Boca Raton"
     ],
-    "serviceAreaTitle": "We Come to You"
-  }
+    "serviceAreaTitle": "We Come to You",
+    "reviewSynopsis": {
+      "aggregateRating": 5,
+      "totalReviewCount": 3,
+      "boatworkReviewCount": 3,
+      "googleReviewCount": 0,
+      "summary": "Our clients consistently describe us as dependable, honest, and punctual, with a deep knowledge of yacht systems that gives them full confidence their vessel is in great hands. Many of our customers have trusted us with their boats for years, highlighting our professionalism, attention to detail, and our commitment to going above and beyond on every job. We take pride in ensuring every yacht is impeccably maintained and ready to go at a moment's notice.",
+      "keywords": [
+        "yacht maintenance",
+        "attention to detail",
+        "dependable service",
+        "professional yacht care",
+        "knowledgeable technicians",
+        "punctual service",
+        "long-term client relationships",
+        "yacht systems expertise"
+      ],
+      "sources": [
+        "boatwork"
+      ]
+    }
+  },
+  "synopsisUpdatedAt": "2026-04-08T13:19:34.000Z"
 }
