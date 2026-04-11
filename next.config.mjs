@@ -13,5 +13,11 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      { source: '/llms.txt', destination: '/api/llms' },
+      { source: '/llms-full.txt', destination: '/api/llms-full' },
+    ];
+  },
 };
 export default nextConfig;

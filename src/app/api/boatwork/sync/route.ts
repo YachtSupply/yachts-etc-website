@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     // Trigger Next.js on-demand revalidation for all pages
-    const pagesToRevalidate = ['/', '/about', '/services', '/portfolio', '/news', '/contact'];
+    const pagesToRevalidate = ['/', '/about', '/services', '/portfolio', '/news', '/contact', '/api/llms', '/api/llms-full'];
     for (const p of pagesToRevalidate) {
       revalidatePath(p);
     }
