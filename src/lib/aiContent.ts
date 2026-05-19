@@ -24,6 +24,39 @@ export interface ReviewSynopsisData {
   sources: ('boatwork' | 'google')[];
 }
 
+export interface ParkedSimilarContractor {
+  slug: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  avatarUrl: string | null;
+  googleRating: number | null;
+  googleReviewCount: number | null;
+  primarySpecialty: string | null;
+  profileUrl: string;
+}
+
+// SEO-DUP-7b: when this block is present with `isActive: true`, the template
+// renders a "this site is no longer available" landing instead of the normal
+// homepage, and layout.tsx flips to robots: { index: false }. Written by
+// boatwork-dev's parkContractor helper when a subscription ends.
+export interface ParkedBlock {
+  isActive: true;
+  message: string;
+  parkedAt: string;
+  similarContractors: ParkedSimilarContractor[];
+  profileUrl: string;
+}
+
+// KAN-779 — first-person, contractor-voice content blocks produced by the M2
+// pipeline on boatwork-dev and merged into generated-content.json by the
+// provisioning + refresh-dirty-content paths. Keyed by the same slugs the
+// content generator uses (specialty slug, city slug).
+export interface SubdomainContentBlock {
+  headline?: string;
+  body: string;
+}
+
 export interface GeneratedContent {
   tagline: string;               // Only used as fallback if profile.tagline is null
   about: string;                 // Enriched about text — voice-preserving + SEO
@@ -37,6 +70,14 @@ export interface GeneratedContent {
   serviceAreaTitle?: string;     // Dynamic section title based on business type
   serviceKeywords: Record<string, string[]>;  // Per-service bullet keywords
   reviewSynopsis?: ReviewSynopsisData;  // AI-synthesized review summary (optional - only if reviews exist)
+  parked?: ParkedBlock;          // SEO-DUP-7b: optional — only present when the contractor's subscription has ended
+  // KAN-779 — surface-specific content the M2 pipeline writes onto the
+  // contractor record. Null when generation hasn't run for this contractor
+  // yet; the template falls back to existing fields/templates in that case.
+  subdomainHeroText?: string | null;
+  subdomainServiceDetails?: Record<string, SubdomainContentBlock> | null;
+  subdomainCityContent?: Record<string, SubdomainContentBlock> | null;
+  marketplaceAboutText?: string | null;
 }
 
 interface CachedContent {
@@ -47,8 +88,14 @@ interface CachedContent {
   content: GeneratedContent;
 }
 
-// ---------- Fallback content (used when generated-content.json is missing) ----------
+// ---------- Fallback content (used in local dev only — see generateSiteContent) ----------
 
+// SEO-DUP-9: this fallback used to copy profile.description verbatim, which is
+// the same text the marketplace /pro/[slug]/ page renders. That's a silent
+// duplicate-content violation. The fallback now uses a structural placeholder
+// that never overlaps with marketplace copy. In production this code path
+// isn't reached — generateSiteContent throws when generated-content.json is
+// missing.
 export function buildFallbackContent(profile: BoatworkProfile): GeneratedContent {
   const city = profile.city ?? 'Fort Lauderdale';
   const state = profile.state ?? 'FL';
@@ -56,7 +103,7 @@ export function buildFallbackContent(profile: BoatworkProfile): GeneratedContent
 
   return {
     tagline: 'Where Luxury Meets Meticulous Care',
-    about: profile.description ?? `${profile.name} is a premier marine services provider based in ${city}, ${state}. Offering comprehensive yacht management and maintenance services, the team delivers expert care with precision and professionalism. From routine maintenance to complete vessel oversight, every detail is handled with the highest standards.`,
+    about: `Professional marine services in ${city}, ${state}. Site content is being generated — please check back shortly.`,
     seoTitle: `${profile.name} | ${primaryService} ${city}, ${state}`,
     seoDescription: `${profile.name} provides expert ${primaryService.toLowerCase()} and marine services in ${city}, ${state}. Trusted by yacht owners across South Florida.`,
     seoKeywords: [
@@ -112,9 +159,20 @@ export async function generateSiteContent(profile: BoatworkProfile): Promise<Gen
       }
     }
   } catch {
-    // Fall through to fallback
+    // Fall through to error/fallback
   }
 
-  console.warn('[aiContent] generated-content.json not found or invalid — using fallback content. Run scripts/generate-content.mjs before building.');
+  // SEO-DUP-9: on a *provisioned* mini-site, refuse to render without the
+  // generated-content.json that provisioning commits. TEMPLATE_VERSION is set
+  // only on provisioned Vercel projects (see boatwork-dev provisioning step 5).
+  // On the template's own standalone build / local dev, fall through to the
+  // non-overlapping structural fallback below.
+  if (process.env.TEMPLATE_VERSION) {
+    throw new Error(
+      '[aiContent] generated-content.json is missing or invalid on a provisioned mini-site. This file is committed by provisioning before the Vercel build; its absence indicates a failed or incomplete provision. Refusing to render to avoid shipping placeholder copy.',
+    );
+  }
+
+  console.warn('[aiContent] generated-content.json not found or invalid — using fallback (template build or local dev). Run scripts/generate-content.mjs before building.');
   return buildFallbackContent(profile);
 }

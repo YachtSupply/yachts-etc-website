@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { getProfileSlug } from '@/lib/config';
+import { getProfileSlug, requireSiteUrl } from '@/lib/config';
 import { getSiteData } from '@/lib/siteData';
 
 const BOATWORK_API = 'https://boatwork.co/api/v1';
@@ -35,7 +35,7 @@ async function fetchApiSitemap(): Promise<MetadataRoute.Sitemap | null> {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const apiSitemap = await fetchApiSitemap();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com';
+  const siteUrl = requireSiteUrl();
   const siteConfig = await getSiteData();
   const longFormUpdates = siteConfig.updates
     .filter((u) => u.isLongForm && u.slug)

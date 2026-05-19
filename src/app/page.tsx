@@ -5,13 +5,64 @@ import { GiAnchor } from 'react-icons/gi';
 import { FiPhone, FiArrowRight, FiClock, FiTool, FiZap, FiUsers } from 'react-icons/fi';
 import { GiShipWheel, GiWaves } from 'react-icons/gi';
 import { getSiteData } from '@/lib/siteData';
+import { requireSiteUrl } from '@/lib/config';
 import { formatPhone } from '@/lib/phoneUtils';
-import { ReviewCard, ReviewSynopsis, SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo, UpdatesFeed } from '@/components/shared';
+import { ParkedLanding } from '@/components/ParkedLanding';
+import { SectionWrapper, BoatworkVerifiedBadge, PortfolioGrid, ServiceAreaMap, SmartLogo, UpdatesFeed } from '@/components/shared';
 
 // Extract first sentence from a description
 function firstSentence(text: string): string {
   const match = text.match(/^[^.!?]+[.!?]/);
   return match ? match[0].trim() : text;
+}
+
+function formatReviewDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+}
+
+function formatCityFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+// Convert "8:00 AM", "8 AM", "8am", "08:00", "5:00 PM" → "HH:MM" 24-hour.
+function toIso24h(input: string): string | null {
+  const s = input.trim();
+  if (!s) return null;
+  if (/^\d{1,2}:\d{2}$/.test(s)) return s.padStart(5, '0');
+  const m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*([AP]M)?$/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = m[2] ?? '00';
+  const suffix = m[3]?.toUpperCase();
+  if (suffix === 'PM' && h < 12) h += 12;
+  if (suffix === 'AM' && h === 12) h = 0;
+  if (h > 23 || parseInt(min, 10) > 59) return null;
+  return `${h.toString().padStart(2, '0')}:${min}`;
+}
+
+// Parse "8:00 AM – 5:00 PM" / "9am-5pm" / "08:00 to 17:00" into
+// schema.org-compatible opens/closes pair. Returns null for closed,
+// unparseable, ambiguous (bare "9-5" — could be 9am-5pm or 9pm-5am, refuse
+// to guess), or zero-length ranges. Each side must carry either an AM/PM
+// marker or explicit :MM minutes — bare numerals are rejected so we never
+// emit guessed 24-hour values.
+function parseHoursPair(input: string): { opens: string; closes: string } | null {
+  const s = input.trim();
+  if (!s || /^(closed|open|by appointment|appointment only|n\/a)$/i.test(s)) return null;
+  const side = '(\\d{1,2}:\\d{2}(?:\\s*[AP]M)?|\\d{1,2}\\s*[AP]M)';
+  const m = s.match(new RegExp(`^${side}\\s*(?:[-–—]|to)\\s*${side}$`, 'i'));
+  if (!m) return null;
+  const opens = toIso24h(m[1]);
+  const closes = toIso24h(m[2]);
+  if (!opens || !closes) return null;
+  if (opens === closes) return null;
+  return { opens, closes };
 }
 
 // Icon lookup for service summary cards
@@ -27,12 +78,12 @@ const iconMap: Record<string, React.ReactNode> = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteData = await getSiteData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = requireSiteUrl();
   const apiSeo = siteData.apiSeo;
   const serviceNames = siteData.services.slice(0, 3).map((s) => s.name).join(', ');
   const title = apiSeo?.titles?.homepage ?? `${siteData.name} — Marine Services in ${siteData.city}, ${siteData.state}`;
   const description = apiSeo?.metaDescriptions?.homepage ?? `${siteData.name} provides ${serviceNames} in ${siteData.city}, ${siteData.state}. Request a quote today.`;
-  const canonical = apiSeo?.canonicals?.homepage ?? (siteUrl || '/');
+  const canonical = apiSeo?.canonicals?.homepage ?? siteUrl;
   return {
     title,
     description,
@@ -45,7 +96,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const siteConfig = await getSiteData();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  // SEO-DUP-7b: parked sites render the "no longer available" landing +
+  // similar-pro cross-sells instead of the normal homepage. Early return so
+  // the rest of the page logic (reviews, services, portfolio, etc.) doesn't
+  // get computed for a site that won't render them.
+  if (siteConfig.parked?.isActive) {
+    return <ParkedLanding parked={siteConfig.parked} businessName={siteConfig.name} />;
+  }
+
+  const siteUrl = requireSiteUrl();
 
   const reviews = siteConfig.boatwork.staticReviews;
   const avgRating = reviews.length > 0
@@ -56,7 +115,7 @@ export default async function HomePage() {
   const hasPortfolio = siteConfig.portfolio.length > 0 || siteConfig.videos.length > 0;
 
   // LocalBusiness JSON-LD — no reviews on homepage, include sameAs to marketplace
-  const localBusinessSchema = siteConfig.apiSeo?.jsonLd ?? {
+  const baseLocalBusinessSchema = siteConfig.apiSeo?.jsonLd ?? {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     name: siteConfig.name,
@@ -76,6 +135,45 @@ export default async function HomePage() {
       siteConfig.social.facebook,
       siteConfig.social.instagram,
     ].filter(Boolean),
+  };
+
+  // KAN-779 — emit AggregateRating only at the 3+ review threshold so the
+  // displayed star block (S5) and the structured-data signal stay aligned.
+  // Use the aggregate count/rating from siteData (which reads from the
+  // synopsis or the API total) rather than the 5-review display slice.
+  const totalReviewCount = siteConfig.aggregateReviewCount;
+  const totalAverageRating = siteConfig.aggregateRating;
+  const aggregateRating =
+    totalReviewCount >= 3 && totalAverageRating !== null
+      ? {
+          '@type': 'AggregateRating',
+          ratingValue: Math.round(totalAverageRating * 10) / 10,
+          reviewCount: totalReviewCount,
+        }
+      : null;
+
+  // KAN-779 — OpeningHoursSpecification per day. Skip days that don't parse
+  // (closed, unset, "Open" placeholder) rather than fabricating ranges.
+  const openingHoursSpecification = siteConfig.hoursOfOperation
+    ? Object.entries(siteConfig.hoursOfOperation)
+        .map(([day, value]) => {
+          if (!value) return null;
+          const pair = parseHoursPair(value);
+          if (!pair) return null;
+          return {
+            '@type': 'OpeningHoursSpecification',
+            dayOfWeek: day,
+            opens: pair.opens,
+            closes: pair.closes,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const localBusinessSchema = {
+    ...baseLocalBusinessSchema,
+    ...(aggregateRating ? { aggregateRating } : {}),
+    ...(openingHoursSpecification.length > 0 ? { openingHoursSpecification } : {}),
   };
 
   const serviceSchemas = siteConfig.services.map((s) => ({
@@ -163,6 +261,28 @@ export default async function HomePage() {
       {/* Gold divider */}
       <div className="gold-rule-full" />
 
+      {/* KAN-779 — first-person, contractor-voice introduction sourced from
+          subdomainHeroText. Anchors the subdomain's content differentiation
+          from the marketplace surface; hidden when generation hasn't produced
+          a value yet. */}
+      {siteConfig.subdomainHeroText && (
+        <>
+          <SectionWrapper variant="white" id="intro">
+            <div className="max-w-3xl mx-auto">
+              <div className="flex items-center justify-center gap-3 mb-8">
+                <div className="h-px w-8 bg-gold/60" />
+                <GiAnchor className="text-gold" size={20} />
+                <div className="h-px w-8 bg-gold/60" />
+              </div>
+              <div className="font-sans text-lg leading-relaxed text-text whitespace-pre-line">
+                {siteConfig.subdomainHeroText}
+              </div>
+            </div>
+          </SectionWrapper>
+          <div className="gold-rule-full" />
+        </>
+      )}
+
       {/* Services Preview — first sentence only */}
       <SectionWrapper variant="cream" id="services">
         <div className="text-center mb-14">
@@ -210,8 +330,21 @@ export default async function HomePage() {
         </div>
       </SectionWrapper>
 
-      {/* Reviews — show if synopsis exists OR individual reviews exist */}
-      {(siteConfig.reviewSynopsis || reviews.length > 0) && (
+      {/* Reviews — KAN-779: synopsis paragraph removed (overlapped marketplace).
+          KAN-784: render up to 12 full-text Boatwork-native reviews in
+          pull-quote style (previously capped at 3). Aggregate count + rating
+          live in the LocalBusiness JSON-LD + the three-state navbar block (S5).
+          Google SERP reviews are NOT rendered in full here — Google ToS — but
+          they're counted in the navbar/schema aggregate. A CTA to the
+          marketplace profile gives visitors the path to the complete review
+          set including the Google ones.
+          KAN-785: a first-person, business-owner-voice synthesis of the cached
+          reviews is rendered above the pull-quote grid as a "from us about us"
+          intro. The text is generated at build/refresh time (no runtime LLM)
+          and is intentionally different from the marketplace's third-person
+          editorial summary — they share the underlying review pool but the
+          voice and framing are the differentiator. */}
+      {reviews.length > 0 && (
         <>
           <div className="gold-rule-full" />
           <SectionWrapper variant="cream" id="reviews">
@@ -224,27 +357,63 @@ export default async function HomePage() {
               <h2 className="font-serif text-4xl font-bold text-navy mb-4">What Our Clients Say</h2>
             </div>
 
-            {/* Review Synopsis (if available) */}
-            {siteConfig.reviewSynopsis && (
-              <ReviewSynopsis
-                businessName={siteConfig.name}
-                aggregateRating={siteConfig.reviewSynopsis.aggregateRating}
-                totalReviewCount={siteConfig.reviewSynopsis.totalReviewCount}
-                summary={siteConfig.reviewSynopsis.summary}
-                keywords={siteConfig.reviewSynopsis.keywords}
-              />
-            )}
-
-            {/* Individual review cards */}
-            {reviews.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-cream-dark">
-                {siteConfig.boatwork.staticReviews.map((r, i) => (
-                  <div key={r.id ?? `${r.author}-${i}`} className="bg-cream">
-                    <ReviewCard {...r} />
-                  </div>
-                ))}
+            {siteConfig.reviewSynopsis?.summary && siteConfig.aggregateReviewCount >= 3 && (
+              <div className="max-w-3xl mx-auto mb-12">
+                <p className="font-serif text-lg md:text-xl text-text leading-relaxed text-center italic">
+                  {siteConfig.reviewSynopsis.summary}
+                </p>
               </div>
             )}
+
+            {(() => {
+              const shown = reviews.slice(0, 12);
+              const total = siteConfig.aggregateReviewCount;
+              const moreCount = Math.max(0, total - shown.length);
+              return (
+                <>
+                  <div className={`grid gap-6 max-w-6xl mx-auto ${
+                    shown.length === 1 ? 'grid-cols-1 max-w-2xl' :
+                    shown.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+                    'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                  }`}>
+                    {shown.map((r, i) => (
+                      <blockquote
+                        key={r.id ?? `${r.author}-${i}`}
+                        className="bg-white border border-cream-dark p-8 flex flex-col"
+                      >
+                        <div className="flex mb-4">
+                          {Array.from({ length: r.rating }).map((_, j) => (
+                            <span key={j} className="text-gold text-xl">★</span>
+                          ))}
+                        </div>
+                        <p className="font-serif text-lg text-text leading-relaxed mb-6 italic flex-1">
+                          &ldquo;{r.text}&rdquo;
+                        </p>
+                        <footer className="border-t border-cream-dark pt-4">
+                          <p className="font-serif text-base font-semibold text-navy">{r.author}</p>
+                          <p className="text-text-light text-xs font-sans mt-1">
+                            {formatReviewDate(r.date)}
+                          </p>
+                        </footer>
+                      </blockquote>
+                    ))}
+                  </div>
+                  {moreCount > 0 && siteConfig.boatwork.profileUrl && (
+                    <div className="text-center mt-10">
+                      <a
+                        href={siteConfig.boatwork.profileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-navy font-sans font-semibold text-sm uppercase tracking-widest hover:text-gold transition-colors border-b border-gold/40 pb-1 whitespace-nowrap"
+                      >
+                        View all {total} reviews on Boatwork
+                        <FiArrowRight size={14} className="flex-shrink-0 inline-block" />
+                      </a>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </SectionWrapper>
         </>
       )}
@@ -335,38 +504,79 @@ export default async function HomePage() {
             </ul>
           </div>
           <div className="h-96 lg:h-full min-h-[360px]">
-            <ServiceAreaMap localities={siteConfig.serviceArea} />
+            <ServiceAreaMap
+              localities={siteConfig.serviceArea}
+              city={siteConfig.city}
+              state={siteConfig.state}
+            />
           </div>
         </div>
       </SectionWrapper>
 
-      {/* Business Hours — always shown; falls back to "Available 24/7" when no data */}
-      <>
-        <div className="gold-rule-full" />
-        <SectionWrapper variant="cream" id="hours">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <FiClock className="text-gold flex-shrink-0" size={22} />
-              <h2 className="font-serif text-3xl font-bold text-navy">Business Hours</h2>
+      {/* KAN-779 — "Areas We Serve" detail. Renders one per-city paragraph
+          from subdomainCityContent (M2 pipeline) keyed by city slug. Hidden
+          when the field is null/empty rather than rendering an empty section. */}
+      {siteConfig.subdomainCityContent && Object.keys(siteConfig.subdomainCityContent).length > 0 && (
+        <>
+          <div className="gold-rule-full" />
+          <SectionWrapper variant="cream" id="areas-we-serve">
+            <div className="text-center mb-14">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="h-px w-8 bg-gold/60" />
+                <GiAnchor className="text-gold" size={20} />
+                <div className="h-px w-8 bg-gold/60" />
+              </div>
+              <h2 className="font-serif text-4xl font-bold text-navy mb-4">Areas We Serve</h2>
             </div>
-            <div className="bg-white border border-cream-dark p-6 space-y-2">
-              {siteConfig.hoursOfOperation && dayOrder.some((d) => !!siteConfig.hoursOfOperation![d])
-                ? dayOrder.map((day) => {
-                    const hours = siteConfig.hoursOfOperation![day];
-                    if (!hours) return null;
-                    return (
-                      <div key={day} className="flex justify-between font-sans text-sm">
-                        <span className="text-navy font-semibold w-28">{day}</span>
-                        <span className="text-text">{formatHours(hours)}</span>
-                      </div>
-                    );
-                  })
-                : <p className="text-text font-sans text-sm text-center py-2">Available 24/7</p>
-              }
+            <div className={`grid gap-8 max-w-5xl mx-auto ${
+              Object.keys(siteConfig.subdomainCityContent).length === 1
+                ? 'grid-cols-1'
+                : 'grid-cols-1 md:grid-cols-2'
+            }`}>
+              {Object.entries(siteConfig.subdomainCityContent).map(([slug, block]) => (
+                <article key={slug} className="bg-white border border-cream-dark p-8">
+                  <h3 className="font-serif text-2xl font-bold text-navy mb-4">
+                    {block.headline ?? formatCityFromSlug(slug)}
+                  </h3>
+                  <p className="text-text font-sans leading-relaxed whitespace-pre-line">
+                    {block.body}
+                  </p>
+                </article>
+              ))}
             </div>
-          </div>
-        </SectionWrapper>
-      </>
+          </SectionWrapper>
+        </>
+      )}
+
+      {/* Business Hours — KAN-780 parity with the marketplace: only render
+          days the contractor actually populated; hide the section entirely
+          when nothing is set rather than showing "08:00 to 08:00" rows that
+          look like real hours to both visitors and Google. */}
+      {(() => {
+        const populated = dayOrder.filter((d) => !!siteConfig.hoursOfOperation?.[d]);
+        if (populated.length === 0) return null;
+        return (
+          <>
+            <div className="gold-rule-full" />
+            <SectionWrapper variant="cream" id="hours">
+              <div className="max-w-lg mx-auto">
+                <div className="flex items-center justify-center gap-3 mb-6">
+                  <FiClock className="text-gold flex-shrink-0" size={22} />
+                  <h2 className="font-serif text-3xl font-bold text-navy">Business Hours</h2>
+                </div>
+                <div className="bg-white border border-cream-dark p-6 space-y-2">
+                  {populated.map((day) => (
+                    <div key={day} className="flex justify-between font-sans text-sm">
+                      <span className="text-navy font-semibold w-28">{day}</span>
+                      <span className="text-text">{formatHours(siteConfig.hoursOfOperation![day])}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </SectionWrapper>
+          </>
+        );
+      })()}
 
       {/* CTA */}
       <SectionWrapper variant="navy">

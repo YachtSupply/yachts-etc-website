@@ -19,9 +19,34 @@ interface NavbarProps {
   hasPortfolio?: boolean;
   hasUpdates?: boolean;
   phone?: string | null;
+  // KAN-779 (S5) — three-state rating block shown beside the logo. The render
+  // mirrors the marketplace M4 logic: hide entirely when count is 0, show
+  // count only when 1-2, show stars + average + count when 3+.
+  reviewCount?: number;
+  averageRating?: number | null;
 }
 
-export function Navbar({ logoUrl, name, hasPortfolio = false, hasUpdates = false, phone }: NavbarProps) {
+function NavRating({ count, average }: { count: number; average: number | null }) {
+  if (!count || count <= 0) return null;
+  if (count < 3 || average === null) {
+    return (
+      <span className="hidden md:inline-flex items-center gap-1 text-xs font-sans text-text-light whitespace-nowrap">
+        <span className="font-semibold text-navy">{count}</span>
+        {count === 1 ? 'review' : 'reviews'}
+      </span>
+    );
+  }
+  const rounded = Math.round(average * 10) / 10;
+  return (
+    <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-sans text-text-light whitespace-nowrap">
+      <span className="text-gold text-sm leading-none" aria-hidden="true">★</span>
+      <span className="font-semibold text-navy">{rounded.toFixed(1)}</span>
+      <span>({count})</span>
+    </span>
+  );
+}
+
+export function Navbar({ logoUrl, name, hasPortfolio = false, hasUpdates = false, phone, reviewCount = 0, averageRating = null }: NavbarProps) {
   const flags = { portfolio: hasPortfolio, updates: hasUpdates };
   const links = ALL_LINKS.filter((l) => !l.requires || flags[l.requires]);
   const [open, setOpen] = useState(false);
@@ -43,7 +68,10 @@ export function Navbar({ logoUrl, name, hasPortfolio = false, hasUpdates = false
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-18 py-3">
-          <Logo logoUrl={logoUrl} name={name} />
+          <div className="flex items-center gap-4">
+            <Logo logoUrl={logoUrl} name={name} />
+            <NavRating count={reviewCount} average={averageRating} />
+          </div>
           <div className="hidden md:flex items-center gap-6">
             {phone && (
               <a

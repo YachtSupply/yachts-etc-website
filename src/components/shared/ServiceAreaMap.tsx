@@ -1,16 +1,23 @@
 interface ServiceAreaMapProps {
   localities?: string[];
+  city?: string | null;
+  state?: string | null;
 }
 
-export function ServiceAreaMap({ localities }: ServiceAreaMapProps) {
-  // Centered on South Florida (between all three counties), zoomed to show Broward, Miami-Dade, Palm Beach
-  const embedUrl =
-    'https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d369476!2d-80.2!3d26.1!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus';
+export function ServiceAreaMap({ localities, city, state }: ServiceAreaMapProps) {
+  // KAN-761: build the embed URL from the contractor's city/state instead of
+  // a hardcoded South Florida default. When city is unknown we hide the map
+  // entirely — a default-location map is worse than no map (misleads users
+  // about the pro's location and signals data-quality issues to crawlers).
+  const mapQuery = city ? (state ? `${city}, ${state}` : city) : null;
+  if (!mapQuery) return null;
+
+  const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed&z=11`;
 
   const rawLocalities =
     localities && localities.length > 0
       ? localities
-      : ['Broward County', 'Miami-Dade County', 'Palm Beach County', 'Monroe County'];
+      : [mapQuery];
 
   // Limit to max 5 entries, single row display
   const displayLocalities = rawLocalities.slice(0, 5);

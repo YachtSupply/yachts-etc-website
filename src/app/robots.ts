@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { getProfileSlug } from '@/lib/config';
+import { getProfileSlug, requireSiteUrl } from '@/lib/config';
 
 const BOATWORK_API = 'https://boatwork.co/api/v1';
 
@@ -48,7 +48,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   if (apiRobots) return apiRobots;
 
   // Fallback to default
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com';
+  const baseUrl = requireSiteUrl();
   return {
     rules: [
       { userAgent: '*', allow: '/' },

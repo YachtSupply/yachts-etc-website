@@ -124,8 +124,18 @@ All shared components live in `src/components/shared/` and are exported from `sr
 
 ## Template Sync System
 
-When this template is updated, a GitHub Action automatically opens PRs on all contractor repos (`*-website` repos in YachtSupply org) with the changes.
+When this template is updated, the `boatwork-orchestrator` service automatically bumps the version + fans the change out to all subscribed contractor repos (`*-website` repos in the YachtSupply org).
 
-**Setup:** Add a `SYNC_TOKEN` secret to this repo with a GitHub PAT that has `repo` scope on the YachtSupply org. The existing provisioning PAT works.
+**How it works (KAN-786):**
 
-**Never synced:** `src/site.config.ts` and `.boatwork-template` — these are contractor-specific.
+1. A PR merges to `main` here.
+2. GitHub fires a `push` webhook to the orchestrator at `https://orchestrator.boatwork.co/api/webhooks/github`.
+3. The orchestrator bumps the patch version, commits the bump back here with marker `[orchestrator-bump]`, and updates `.boatwork-template` + `package.json` + `src/site.config.ts`.
+4. The bump commit fires a second webhook. The orchestrator recognizes its own marker and triggers `syncTemplate()`.
+5. The sync engine pushes all syncable files to every subscriber repo. Each contractor's Vercel project redeploys.
+
+**No secrets required on this repo.** The org-level `SYNC_TOKEN` lives only inside the orchestrator. This is the deliberate inverse of the prior `auto-version.yml` setup that needed a PAT here and broke silently for 4+ weeks when the token expired.
+
+**Self-healing:** The orchestrator's drift watchdog (KAN-787) auto-retries any subscriber that drifts behind the template version. Persistent failure surfaces as a Jira alert (KAN-788).
+
+**Never synced to contractor repos:** `src/site.config.ts`, `src/data/generated-content.json`, `src/palette.config.json`, `.boatwork-template`. These are contractor-specific.

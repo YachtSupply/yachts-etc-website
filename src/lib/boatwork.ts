@@ -408,11 +408,28 @@ export async function fetchBoatworkProfile(slug: string, profileId?: string): Pr
         hoursOfOperation: (() => {
           const h = raw.hoursOfOperation;
           if (!h) return null;
-          if (typeof h === 'object') return h as Record<string, string>;
-          if (typeof h === 'string') {
-            try { return JSON.parse(h) as Record<string, string>; } catch { return null; }
+          // The DB stores hours JSON-encoded keyed by short day names
+          // (mon/tue/wed/thu/fri/sat/sun). The template + schema renders
+          // expect full names (Monday/Tuesday/...) so normalize once here
+          // instead of mapping at every read site (which silently hid the
+          // hours section everywhere it forgot to).
+          const dayMap: Record<string, string> = {
+            mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+            fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+          };
+          let raw_obj: Record<string, unknown> | null = null;
+          if (typeof h === 'object') raw_obj = h as Record<string, unknown>;
+          else if (typeof h === 'string') {
+            try { raw_obj = JSON.parse(h) as Record<string, unknown>; } catch { return null; }
           }
-          return null;
+          if (!raw_obj) return null;
+          const out: Record<string, string> = {};
+          for (const [k, v] of Object.entries(raw_obj)) {
+            if (typeof v !== 'string' || !v.trim()) continue;
+            const fullDay = dayMap[k.toLowerCase()] ?? k;
+            out[fullDay] = v;
+          }
+          return Object.keys(out).length > 0 ? out : null;
         })(),
         averageResponseTime: asString(raw.averageResponseTime) ?? asString(raw.avgResponseTime),
         websiteTheme: asString(raw.websiteTheme),

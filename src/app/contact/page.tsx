@@ -3,18 +3,19 @@ import type { Metadata } from 'next';
 import { GiAnchor } from 'react-icons/gi';
 import { FiPhone, FiMapPin, FiClock, FiFacebook, FiInstagram } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
+import { requireSiteUrl } from '@/lib/config';
 import { formatPhone } from '@/lib/phoneUtils';
 import { ContactForm, SectionWrapper, BoatworkBadge } from '@/components/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = requireSiteUrl();
   const apiSeo = siteConfig.apiSeo;
   return {
     title: apiSeo?.titles?.contact ?? `Contact ${siteConfig.name} | Get a Quote — ${siteConfig.city}, ${siteConfig.state}`,
     description: apiSeo?.metaDescriptions?.contact ?? `Contact ${siteConfig.name} in ${siteConfig.city}, ${siteConfig.state}. ${siteConfig.phone ? `Call ${siteConfig.phone} or r` : 'R'}equest a quote online.`,
     alternates: {
-      canonical: apiSeo?.canonicals?.contact ?? (siteUrl ? `${siteUrl}/contact` : '/contact'),
+      canonical: apiSeo?.canonicals?.contact ?? `${siteUrl}/contact`,
     },
   };
 }
@@ -88,29 +89,29 @@ export default async function ContactPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-cream-dark" />
+              {siteConfig.hoursOfOperation && dayOrder.some((d) => !!siteConfig.hoursOfOperation![d]) && (
+                <>
+                  <div className="h-px bg-cream-dark" />
 
-              <div className="flex items-start gap-4">
-                <FiClock className="text-gold mt-0.5 flex-shrink-0" size={20} />
-                <div>
-                  <p className="text-xs font-sans font-semibold uppercase tracking-widest text-navy mb-1">Business Hours</p>
-                  <div className="space-y-1">
-                    {siteConfig.hoursOfOperation && dayOrder.some((d) => !!siteConfig.hoursOfOperation![d])
-                      ? dayOrder.map((day) => {
+                  <div className="flex items-start gap-4">
+                    <FiClock className="text-gold mt-0.5 flex-shrink-0" size={20} />
+                    <div>
+                      <p className="text-xs font-sans font-semibold uppercase tracking-widest text-navy mb-1">Business Hours</p>
+                      <div className="space-y-1">
+                        {dayOrder.map((day) => {
                           const hours = siteConfig.hoursOfOperation![day];
-                          if (!hours) return null;
                           return (
                             <div key={day} className="flex gap-2 text-sm font-sans">
                               <span className="text-navy font-semibold w-24">{day}</span>
-                              <span className="text-text">{formatHours(hours)}</span>
+                              <span className="text-text">{hours ? formatHours(hours) : '08:00 to 08:00'}</span>
                             </div>
                           );
-                        })
-                      : <span className="text-text font-sans text-sm">Available 24/7</span>
-                    }
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
 
               <div className="h-px bg-cream-dark" />
 

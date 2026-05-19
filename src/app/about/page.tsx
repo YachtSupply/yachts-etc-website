@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { GiAnchor } from 'react-icons/gi';
 import { FiArrowRight, FiMapPin } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
+import { requireSiteUrl } from '@/lib/config';
 import { SectionWrapper, BoatworkVerifiedBadge, SmartLogo } from '@/components/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = requireSiteUrl();
   const apiSeo = siteConfig.apiSeo;
   const primaryService = siteConfig.services[0]?.name ?? 'Marine Services';
   const firstDesc = siteConfig.description ? siteConfig.description.match(/^[^.!?]+[.!?]/)?.[0] ?? '' : '';
@@ -16,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: apiSeo?.titles?.about ?? `About ${siteConfig.name} — ${primaryService} in ${siteConfig.city}, ${siteConfig.state}`,
     description: apiSeo?.metaDescriptions?.about ?? `Learn about ${siteConfig.name}, serving ${siteConfig.city} boat owners${siteConfig.yearEstablished ? ` since ${siteConfig.yearEstablished}` : ''}. ${firstDesc}`.trim(),
     alternates: {
-      canonical: apiSeo?.canonicals?.about ?? (siteUrl ? `${siteUrl}/about` : '/about'),
+      canonical: apiSeo?.canonicals?.about ?? `${siteUrl}/about`,
     },
   };
 }

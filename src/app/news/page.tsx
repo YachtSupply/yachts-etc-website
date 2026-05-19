@@ -5,18 +5,19 @@ import { redirect } from 'next/navigation';
 import { GiAnchor } from 'react-icons/gi';
 import { FiMapPin } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
+import { requireSiteUrl } from '@/lib/config';
 import { SectionWrapper, SafeHtmlImage } from '@/components/shared';
 import type { BoatworkUpdate } from '@/lib/boatwork';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = requireSiteUrl();
   const apiSeo = siteConfig.apiSeo;
   return {
     title: apiSeo?.titles?.news ?? `News & Updates — ${siteConfig.name}`,
     description: apiSeo?.metaDescriptions?.news ?? `Latest news and updates from ${siteConfig.name} in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
-      canonical: apiSeo?.canonicals?.news ?? (siteUrl ? `${siteUrl}/news` : '/news'),
+      canonical: apiSeo?.canonicals?.news ?? `${siteUrl}/news`,
     },
   };
 }

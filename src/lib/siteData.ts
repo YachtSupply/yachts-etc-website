@@ -9,7 +9,7 @@
 import { cache } from 'react';
 import { siteConfig } from '@/site.config';
 import { fetchBoatworkProfile, type BoatworkProfile, type BoatworkSeo, type BoatworkUpdate } from './boatwork';
-import { buildFallbackContent, type GeneratedContent, type ReviewSynopsisData } from './aiContent';
+import { buildFallbackContent, type GeneratedContent, type ParkedBlock, type ReviewSynopsisData, type SubdomainContentBlock } from './aiContent';
 import { getProfileSlug, getProfileId, getProfileUrl, getBoatworkLogoUrl } from './config';
 import fs from 'fs';
 import path from 'path';
@@ -65,6 +65,18 @@ export type SiteData = Omit<typeof siteConfig, 'hoursOfOperation' | 'services' |
   aboutExcerpt: string | null;
   updates: BoatworkUpdate[];
   reviewSynopsis?: ReviewSynopsisData;
+  parked?: ParkedBlock;  // SEO-DUP-7b: present when the mini-site is parked
+  // KAN-779 — surface-specific content from the M2 pipeline. Each is null
+  // when generation hasn't produced a value yet (template falls back to
+  // existing rendering paths in that case).
+  subdomainHeroText: string | null;
+  subdomainCityContent: Record<string, SubdomainContentBlock> | null;
+  // KAN-779 (S5) — true aggregate counts. `boatwork.staticReviews` is sliced
+  // to the 5 most-recent for display; the full count and weighted rating
+  // come from the API/synopsis instead so the header rating block and the
+  // AggregateRating JSON-LD reflect the real total.
+  aggregateReviewCount: number;
+  aggregateRating: number | null;
 };
 
 // ---------- Icon mapping ----------
@@ -147,6 +159,13 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
       apiSeo: null,
       aboutExcerpt: null,
       updates: [],
+      subdomainHeroText: null,
+      subdomainCityContent: null,
+      aggregateReviewCount: fallbackReviews.length,
+      aggregateRating:
+        fallbackReviews.length > 0
+          ? fallbackReviews.reduce((sum, r) => sum + r.rating, 0) / fallbackReviews.length
+          : null,
     };
   }
 
@@ -156,6 +175,22 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
   // Build a lookup from specialty name → rich data for enriching service cards
   const specialtyLookup = new Map(profile.specialties.map((sp) => [sp.name, sp]));
 
+  // KAN-779 — when the M2 pipeline produced first-person, contractor-voice
+  // copy for a specialty, prefer it over the older AI-flat-string path. Keys
+  // on subdomainServiceDetails match the specialty slug (see
+  // content-generation-service.ts on boatwork-dev).
+  const subdomainServiceDetails = ai.subdomainServiceDetails ?? null;
+  const pickServiceDescription = (
+    name: string,
+    slug: string | null | undefined,
+    fallback: string,
+  ): string => {
+    if (slug && subdomainServiceDetails?.[slug]?.body) {
+      return subdomainServiceDetails[slug].body;
+    }
+    return ai.serviceDescriptions[name] ?? fallback;
+  };
+
   // Map API services to the shape expected by ServiceCard
   const services =
     profile.services.length > 0
@@ -163,10 +198,12 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
           const sp = specialtyLookup.get(s.name);
           return {
             name: s.name,
-            description:
-              ai.serviceDescriptions[s.name] ??
+            description: pickServiceDescription(
+              s.name,
+              sp?.slug,
               siteConfig.services.find((sc) => sc.name === s.name)?.description ??
-              `${profile.name} offers professional ${s.name.toLowerCase()} services in ${profile.city ?? 'South Florida'}, ${profile.state ?? 'FL'}.`,
+                `${profile.name} offers professional ${s.name.toLowerCase()} services in ${profile.city ?? 'South Florida'}, ${profile.state ?? 'FL'}.`,
+            ),
             icon: findIcon(s.name),
             keywords: ai.serviceKeywords?.[s.name] ?? [],
             benefits: sp?.benefits ?? [],
@@ -177,7 +214,11 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
       : profile.specialties.length > 0
       ? profile.specialties.map((s) => ({
           name: s.name,
-          description: ai.serviceDescriptions[s.name] ?? `${profile.name} offers professional ${s.name.toLowerCase()} services in ${profile.city ?? 'South Florida'}, ${profile.state ?? 'FL'}.`,
+          description: pickServiceDescription(
+            s.name,
+            s.slug,
+            `${profile.name} offers professional ${s.name.toLowerCase()} services in ${profile.city ?? 'South Florida'}, ${profile.state ?? 'FL'}.`,
+          ),
           icon: findIcon(s.name),
           keywords: ai.serviceKeywords?.[s.name] ?? [],
           benefits: s.benefits ?? [],
@@ -186,8 +227,12 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
         }))
       : siteConfig.services;
 
-  // Map API reviews (up to 5 most recent) — empty if profile has none
-  const staticReviews = profile.reviews.slice(0, 5).map((r) => ({
+  // Map API reviews — the public endpoint already filters to full-text
+  // Boatwork-native reviews (Google SERP reviews are kept aggregate-only per
+  // their ToS and never reach this array). Take up to 20 so the template has
+  // material to render a substantive section instead of the previous 5-cap
+  // that bottlenecked the visible count to 3.
+  const staticReviews = profile.reviews.slice(0, 20).map((r) => ({
     id: r.id,
     author: r.author,
     rating: r.rating,
@@ -326,5 +371,17 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
     aboutExcerpt: profile.aboutExcerpt,
     updates: profile.updates,
     reviewSynopsis: ai.reviewSynopsis,
+    parked: ai.parked,
+    subdomainHeroText: ai.subdomainHeroText ?? null,
+    subdomainCityContent: ai.subdomainCityContent ?? null,
+    aggregateReviewCount:
+      ai.reviewSynopsis?.totalReviewCount ??
+      profile.reviewCount ??
+      staticReviews.length,
+    aggregateRating: (() => {
+      if (ai.reviewSynopsis?.aggregateRating) return ai.reviewSynopsis.aggregateRating;
+      if (staticReviews.length === 0) return null;
+      return staticReviews.reduce((sum, r) => sum + r.rating, 0) / staticReviews.length;
+    })(),
   };
 });

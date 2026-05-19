@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { getSiteData } from '@/lib/siteData';
-import { getProfileSlug } from '@/lib/config';
+import { getProfileSlug, requireSiteUrl } from '@/lib/config';
 import { Navbar, Footer } from '@/components/shared';
 import './globals.css';
 
@@ -19,6 +19,11 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const data = await getSiteData();
+  // SEO-DUP-7b: parked sites must not be indexed. The point of the landing
+  // is to reclaim inbound traffic, not to rank for the contractor's old
+  // queries — we want Google to drop these URLs and keep the marketplace
+  // (/pro/[slug]) as the canonical surface.
+  const isParked = data.parked?.isActive === true;
   return {
     icons: {
       icon: '/favicon.ico',
@@ -28,18 +33,28 @@ export async function generateMetadata(): Promise<Metadata> {
         { rel: 'icon', url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
       ],
     },
-    title: { template: data.seo.titleTemplate, default: data.seo.defaultTitle },
-    description: data.seo.description,
-    keywords: data.seo.keywords,
+    title: isParked
+      ? { absolute: `${data.name} — no longer available` }
+      : { template: data.seo.titleTemplate, default: data.seo.defaultTitle },
+    description: isParked ? `${data.name} is no longer available on Boatwork.` : data.seo.description,
+    keywords: isParked ? undefined : data.seo.keywords,
     alternates: {
-      canonical: process.env.NEXT_PUBLIC_SITE_URL ?? '/',
+      canonical: requireSiteUrl(),
     },
+    ...(isParked && { robots: { index: false, follow: true } }),
   };
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const data = await getSiteData();
   const profileSlug = getProfileSlug();
+
+  // KAN-779 (S5) — surface the rating in the header. The 1-2 / 3+ threshold
+  // decision lives in the Navbar itself; this just hands it the raw values.
+  // staticReviews is capped at 5 for display, so use the aggregate counts
+  // surfaced by siteData (synopsis → profile.reviewCount → array length).
+  const reviewCount = data.aggregateReviewCount;
+  const averageRating = data.aggregateRating;
   const themeCssUrl = BOATWORK_URL
     ? `${BOATWORK_URL}/api/v1/public/contractors/${profileSlug}/theme.css`
     : null;
@@ -94,7 +109,7 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', '${GA_ID}');`}
         </Script>
-        <Navbar logoUrl={data.logoUrl} name={data.name} hasPortfolio={data.portfolio.length > 0 || data.videos.length > 0} hasUpdates={data.updates.length > 0} phone={data.phone} />
+        <Navbar logoUrl={data.logoUrl} name={data.name} hasPortfolio={data.portfolio.length > 0 || data.videos.length > 0} hasUpdates={data.updates.length > 0} phone={data.phone} reviewCount={reviewCount} averageRating={averageRating} />
         <main>{children}</main>
         <Footer />
       </body>

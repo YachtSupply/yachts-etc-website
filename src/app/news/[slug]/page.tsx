@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { GiAnchor } from 'react-icons/gi';
 import { getSiteData } from '@/lib/siteData';
+import { requireSiteUrl } from '@/lib/config';
 import { SectionWrapper } from '@/components/shared';
 
 function formatDate(dateStr: string): string {
@@ -59,10 +60,14 @@ export async function generateMetadata({
 
   const title = update.title ?? `Update from ${siteConfig.name}`;
   const description = update.content.slice(0, 160);
+  const siteUrl = requireSiteUrl();
 
   return {
     title,
     description,
+    alternates: {
+      canonical: `${siteUrl}/news/${slug}`,
+    },
   };
 }
 

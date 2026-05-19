@@ -4,18 +4,19 @@ import Link from 'next/link';
 import { GiAnchor } from 'react-icons/gi';
 import { FiArrowRight, FiCheckCircle, FiAnchor } from 'react-icons/fi';
 import { getSiteData } from '@/lib/siteData';
+import { requireSiteUrl } from '@/lib/config';
 import { ServiceCard, SectionWrapper, ServiceAreaMap, SafeImage } from '@/components/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteConfig = await getSiteData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = requireSiteUrl();
   const apiSeo = siteConfig.apiSeo;
   const serviceList = siteConfig.services.slice(0, 3).map((s) => s.name).join(', ');
   return {
     title: apiSeo?.titles?.services ?? `Marine Services by ${siteConfig.name} | ${siteConfig.city}, ${siteConfig.state}`,
     description: apiSeo?.metaDescriptions?.services ?? `${siteConfig.name} offers ${serviceList}, and more for boat owners in ${siteConfig.city}, ${siteConfig.state}.`,
     alternates: {
-      canonical: apiSeo?.canonicals?.services ?? (siteUrl ? `${siteUrl}/services` : '/services'),
+      canonical: apiSeo?.canonicals?.services ?? `${siteUrl}/services`,
     },
   };
 }
